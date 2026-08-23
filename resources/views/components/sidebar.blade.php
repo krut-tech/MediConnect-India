@@ -17,5 +17,11 @@
         <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
             Dashboard
         </x-sidebar-link>
+        <x-sidebar-link href="{{ route('facilities.index') }}" :active="request()->routeIs('facilities.*')">
+            Facilities
+        </x-sidebar-link>
+        <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
+            Patients
+        </x-sidebar-link>
     </nav>
 </aside>
