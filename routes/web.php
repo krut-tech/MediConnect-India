@@ -28,5 +28,6 @@ Route::get('/', function () {
 Route::middleware(['supabase.auth'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/facilities', [FacilityController::class, 'index'])->name('facilities.index');
+    Route::get('/facilities/{facility}', [FacilityController::class, 'show'])->name('facilities.show');
     Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
 });

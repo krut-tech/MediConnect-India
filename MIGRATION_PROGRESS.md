@@ -1,6 +1,6 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 3 in progress — Milestone 1 complete (design system extension + first two real, read-only screens). Awaiting review before continuing to further screens/modules.
+**Current phase:** Phase 3 in progress — Milestone 2 complete (role-aware dashboard + facility detail view). Awaiting review before continuing to Milestone 3.
 
 ## Phase 3 — Milestone 1 (Facilities + Patients directories)
 
@@ -32,6 +32,32 @@
 | Supabase schema change check | **PASS** | Re-confirmed via `list_tables` + `get_advisors` immediately before and after this milestone — still 69 tables, RLS enabled on all, only pre-existing advisory findings (unchanged from Phase 2's own list). No writes attempted. |
 
 **No runtime "PASS" is claimed for anything that wasn't actually executed.** Where the Laravel app itself couldn't run, that's marked BLOCKED/NOT RUN, not PASS — per the explicit instruction not to fake it.
+
+## Phase 3 — Milestone 2 (Role-aware dashboard + Facility detail)
+
+### What was built
+- **3 new Eloquent models**, columns verified live against Supabase (`information_schema`) before writing, not assumed from the earlier audit doc: `Department` (`departments` — note: no `updated_at` column, `UPDATED_AT` disabled accordingly), `Specialty` (`specialties`), `Service` (`services_catalog`).
+- **`Facility` model extended** with `departments()`, `specialties()`, `services()` relations (the latter two via the verified `facility_specialties`/`facility_services` pivot tables).
+- **Role-aware `DashboardController`**: branches on `Auth::user()`'s resolved `staff_assignments`/`patient` relationship into 5 states — `signed_out`, `platform_staff`, `facility_staff`, `patient`, `no_role`. Deliberately **never branches on a hardcoded role-code string** (e.g. `'doctor'`) — `roles.code`/`roles.label` are read as data per the `Role` model's own docblock, and `roles` still has 0 seed rows as of this milestone, so guessing a code would be inventing data. Branches only on the verified `is_platform_role` boolean and on which relationships actually resolve.
+  - **Honest note on today's behavior:** `VerifySupabaseSession` is still the documented Phase 2 pass-through, so `Auth::user()` is null on every request right now — meaning the dashboard will show the `signed_out` state for everyone until real auth is wired. This is expected, not a bug, and is stated on-screen rather than hidden.
+- **Facility detail view** (`/facilities/{facility}`) — `FacilityController::show`, real Eloquent `with()` across all 5 new/extended relations. Sections: facility info, departments, specialties/services, staff & providers (shown under their **real role label from the database**, not filtered by a guessed "doctor" role code — see controller docblock). Each section has its own genuine empty state (all 0 rows today). Facilities list now links each facility name to this detail page.
+- **Custom branded 404 view** (`resources/views/errors/404.blade.php`) — this is the facility detail screen's real **error state**: Laravel's route-model binding throws `ModelNotFoundException` → 404 automatically when a facility ID doesn't exist; this view replaces Laravel's default page with one built from the existing design system.
+- **Honest note on "loading state":** this page is fully server-rendered (data arrives with the initial HTML response) — there is no client-side fetch for it to show a spinner for. Faking one would misrepresent how the page works. The `x-skeleton` component from Milestone 1 remains in the design system for a future screen that actually does async/client-fetched data.
+
+### Testing results (Phase 3 Milestone 2)
+
+| Check | Result | Notes |
+|---|---|---|
+| PHP/Blade syntax lint (full repo) | **PASS** | Zero syntax errors |
+| Component cross-check (every `<x-…>` used resolves to a real file) | **PASS** | Checked programmatically; also caught and fixed a real mistake this way — see below |
+| Route cross-check (every `route()` call matches a registered name) | **PASS** | `dashboard`, `facilities.index`, `facilities.show`, `patients.index` |
+| `composer validate` | **PASS** | |
+| `composer install` / `php artisan` / PHPUnit execution | **BLOCKED / NOT RUN** | Still `repo.packagist.org` unreachable in this sandbox — same as Phase 2 and Milestone 1, not a code defect |
+| `npm install` + `vite build` | **PASS** | CSS grew 32.30KB → 33.07KB, confirming new component/utility classes were actually compiled in, not just present in source |
+| Manual secret scan | **PASS** | Clean |
+| Supabase schema change check | **PASS** | Re-confirmed via `list_tables` immediately after this milestone's work: still 69 tables, RLS enabled on all, still 0 rows everywhere. **Zero writes.** Additionally ran a targeted read-only `information_schema` query to verify exact column names/types for `departments`, `specialties`, `services_catalog`, `facility_specialties`, `facility_services`, `staff_assignments`, `roles` before writing any model — this caught that `departments` has no `updated_at` column, which would otherwise have been silently wrong. |
+
+**Real mistake caught and fixed during this milestone (documented, not hidden):** the first draft used `<x-badge variant="info">` for a 24×7 badge — the `badge` component only supports `success`/`warning`/`danger`/`neutral` (verified against `app.css`); `info` would have silently fallen through to the default neutral style rather than erroring. Fixed to `variant="neutral"` before commit.
 
 ## Completed
 

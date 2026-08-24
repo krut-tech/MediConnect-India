@@ -61,4 +61,29 @@ class Facility extends Model
     {
         return $this->hasMany(StaffAssignment::class, 'facility_id');
     }
+
+    public function departments()
+    {
+        return $this->hasMany(Department::class, 'facility_id');
+    }
+
+    /**
+     * Via public.facility_specialties (verified live: facility_id,
+     * specialty_id, created_at — no updated_at on the pivot).
+     */
+    public function specialties()
+    {
+        return $this->belongsToMany(Specialty::class, 'facility_specialties', 'facility_id', 'specialty_id')
+            ->withPivot('created_at');
+    }
+
+    /**
+     * Via public.facility_services (verified live: facility_id,
+     * service_id, created_at — no updated_at on the pivot).
+     */
+    public function services()
+    {
+        return $this->belongsToMany(Service::class, 'facility_services', 'facility_id', 'service_id')
+            ->withPivot('created_at');
+    }
 }

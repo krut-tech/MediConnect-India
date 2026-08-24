@@ -35,7 +35,11 @@
                 <x-table :headings="['Name', 'Type', 'City', 'Group', 'Status']">
                     @foreach($facilities as $facility)
                         <tr>
-                            <td class="font-medium text-ink">{{ $facility->name }}</td>
+                            <td class="font-medium text-ink">
+                                <a href="{{ route('facilities.show', $facility) }}" class="hover:text-primary-600 hover:underline">
+                                    {{ $facility->name }}
+                                </a>
+                            </td>
                             <td class="text-ink-muted">{{ $facility->facility_type ?? '—' }}</td>
                             <td class="text-ink-muted">{{ $facility->city ?? '—' }}</td>
                             <td class="text-ink-muted">{{ $facility->facilityGroup?->name ?? 'Standalone' }}</td>
@@ -58,7 +62,11 @@
                 <x-card>
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <p class="font-medium text-ink truncate">{{ $facility->name }}</p>
+                            <p class="font-medium text-ink truncate">
+                                <a href="{{ route('facilities.show', $facility) }}" class="hover:text-primary-600 hover:underline">
+                                    {{ $facility->name }}
+                                </a>
+                            </p>
                             <p class="mt-0.5 text-sm text-ink-subtle">
                                 {{ $facility->facility_type ?? '—' }} · {{ $facility->city ?? '—' }}
                             </p>
