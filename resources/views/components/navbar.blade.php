@@ -34,7 +34,12 @@
             <div data-dropdown-panel class="hidden absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-popover ring-1 ring-black/5 py-1">
                 <a href="#" class="block px-4 py-2 text-sm text-ink hover:bg-surface-subtle">Profile</a>
                 <a href="#" class="block px-4 py-2 text-sm text-ink hover:bg-surface-subtle">Settings</a>
-                <a href="#" class="block px-4 py-2 text-sm text-danger-600 hover:bg-surface-subtle">Sign out</a>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="w-full text-left block px-4 py-2 text-sm text-danger-600 hover:bg-surface-subtle">
+                        Sign out
+                    </button>
+                </form>
             </div>
         </div>
     </div>

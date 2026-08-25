@@ -25,5 +25,11 @@
         <env name="DB_TESTING_DATABASE" value=":memory:"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- Test-only fixture values, never real credentials. Used solely
+             to sign+verify a fake JWT within the same test process and to
+             give Http::fake() something deterministic to match against. -->
+        <env name="SUPABASE_URL" value="https://test-project.supabase.local"/>
+        <env name="SUPABASE_ANON_KEY" value="test-anon-key-fixture"/>
+        <env name="SUPABASE_JWT_SECRET" value="test-only-jwt-secret-fixture-not-real"/>
     </php>
 </phpunit>

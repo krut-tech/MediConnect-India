@@ -12,11 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Named aliases for role/permission gating on top of Supabase-auth'd
-        // sessions. Registered here (not implemented in depth yet — Phase 2
-        // is foundation only).
+        // Named aliases for auth/role gating. 'supabase.auth' and 'guest'
+        // are real implementations as of Phase 3 Milestone 1 (Auth
+        // Foundation). 'role' remains a placeholder — real role/scope
+        // enforcement is a later, separate milestone.
         $middleware->alias([
             'supabase.auth' => \App\Http\Middleware\VerifySupabaseSession::class,
+            'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
         ]);
     })

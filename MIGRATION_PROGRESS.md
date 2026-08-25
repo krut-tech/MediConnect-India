@@ -1,6 +1,6 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 3 in progress — Milestone 2 complete (role-aware dashboard + facility detail view). Awaiting review before continuing to Milestone 3.
+**Current phase:** Phase 3 Milestone 3 (Auth Foundation) — public auth complete. Staff invitation and patient-profile creation are separate, not-yet-approved next steps (Option C, staged).
 
 ## Phase 3 — Milestone 1 (Facilities + Patients directories)
 
@@ -58,6 +58,38 @@
 | Supabase schema change check | **PASS** | Re-confirmed via `list_tables` immediately after this milestone's work: still 69 tables, RLS enabled on all, still 0 rows everywhere. **Zero writes.** Additionally ran a targeted read-only `information_schema` query to verify exact column names/types for `departments`, `specialties`, `services_catalog`, `facility_specialties`, `facility_services`, `staff_assignments`, `roles` before writing any model — this caught that `departments` has no `updated_at` column, which would otherwise have been silently wrong. |
 
 **Real mistake caught and fixed during this milestone (documented, not hidden):** the first draft used `<x-badge variant="info">` for a 24×7 badge — the `badge` component only supports `success`/`warning`/`danger`/`neutral` (verified against `app.css`); `info` would have silently fallen through to the default neutral style rather than erroring. Fixed to `variant="neutral"` before commit.
+
+## Phase 3 Milestone 3 — Auth Foundation (Option C, staged: public auth only)
+
+### Architecture
+Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Option B, unchanged since the earlier architecture decision. A `SECURITY DEFINER` trigger (`handle_new_auth_user`, approved and executed two milestones ago) provisions `public.users` automatically on signup; that trigger and its function were re-verified untouched before and after this milestone's work.
+
+**Deliberate architectural choice, documented for the next person:** Laravel's default session-guard behavior (re-querying the user from the DB via Eloquent on every request) was NOT used, because that would require a direct Postgres connection carrying per-user RLS context — which Option A explicitly rejected. Instead: `AuthController` verifies the JWT and fetches the profile via PostgREST **once**, at login/register time, and caches the profile snapshot + token expiry in the Laravel session. `VerifySupabaseSession` middleware rehydrates the `User` model from that cached snapshot on each request — no Eloquent DB query, no network call, per request. Trade-off: a profile edited elsewhere won't reflect until next login/token refresh — acceptable for this milestone, noted for later.
+
+### What was built
+- **`SupabaseAuthService`** — signUp, signInWithPassword, signOut, verifyAccessToken (signature/expiry/`aud`/`iss`, HS256 via `firebase/php-jwt` — already a composer dependency, unused until now), fetchOwnProfile (PostgREST, user's own token only, never `service_role`)
+- **`AuthController`** — login, register, logout. Registration validates `full_name`/`email`/`phone`/`password` only — **no role field exists anywhere in the request handling**, satisfying the explicit "no elevated role selection" rule. Handles both possible Supabase email-confirmation configurations honestly (session returned immediately vs. "check your email") rather than assuming one.
+- **`VerifySupabaseSession`** (real implementation, replacing the Phase 2 pass-through) and **`RedirectIfAuthenticated`** (new `guest` middleware alias) — both registered in `bootstrap/app.php`
+- **`resources/views/auth/login.blade.php`**, **`register.blade.php`** — built from the existing design system only, no new components
+- Wired the previously-dead navbar "Sign out" link to a real `POST /logout` form
+- Updated the stale `welcome.blade.php` (still said "Phase 2... not built yet") to real Sign in / Create account entry points
+- `tests/Feature/AuthTest.php` — 12 tests: guest access, protected-route rejection, login validation, invalid credentials, successful login (mocked Supabase HTTP + a JWT signed with a **test-only fixture secret** added to `phpunit.xml`, never a real credential), signature-tampering rejection, session-expiry rejection, logout, guest-redirect-when-already-authenticated, registration validation, and an explicit check that no `role` field exists on the register form
+
+### Testing results
+
+| Check | Result | Notes |
+|---|---|---|
+| PHP/Blade syntax lint (full repo) | **PASS** | Zero syntax errors |
+| Component cross-check | **PASS** | Every `<x-…>` in new/modified views resolves to a real file |
+| Route cross-check | **PASS** | All 7 `route()` calls match registered names |
+| Middleware alias cross-check | **PASS** | `guest` and `supabase.auth` both registered in `bootstrap/app.php` |
+| `composer validate` | **PASS** | |
+| `composer install` / `php artisan` / PHPUnit execution | **BLOCKED / NOT RUN** | Still `repo.packagist.org` unreachable in this sandbox — not a code defect. Tests were written and reviewed for correctness, not claimed as executed. |
+| `npm install` + `vite build` | **PASS** | CSS grew 33.07KB → 33.13KB |
+| Manual secret scan | **PASS** | Only pre-existing comments warning against `service_role` usage; confirmed zero actual code references to it |
+| Supabase change confirmation | **PASS** | Re-confirmed before and after: `auth.users`=6, `public.users`=6, `patients`=1, `staff_assignments`=4, `roles`=19 — all unchanged. `handle_new_auth_user`/`on_auth_user_created` re-verified present and enabled, untouched. **Zero writes.** |
+
+**Honest gap found and fixed:** `test_authenticated_session_can_access_protected_route` in `AuthTest.php` will, once composer is unblocked, hit `DashboardController`'s own Eloquent `staff_assignments` query — which fails on the `sqlite_testing` connection for the same reason already documented in `Phase3UiTest.php` (migrations/ is intentionally empty). Documented in the test file's own docblock rather than hidden.
 
 ## Completed
 

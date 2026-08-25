@@ -1,15 +1,14 @@
 <x-layouts.guest title="MediConnect India">
     <x-card title="MediConnect India">
         <p class="text-sm text-ink-muted">
-            Laravel application foundation — Phase 2. Patient, doctor, and
-            facility modules are not built yet; this page exists to confirm
-            the layout, design system, and routing all render correctly.
+            Sign in to your account, or register as a new user. Staff and
+            patient role assignment is handled separately by an
+            administrator after registration.
         </p>
 
-        <div class="mt-6">
-            <x-button href="{{ route('dashboard') }}">
-                Go to dashboard
-            </x-button>
+        <div class="mt-6 flex flex-wrap gap-3">
+            <x-button href="{{ route('login') }}">Sign in</x-button>
+            <x-button variant="secondary" href="{{ route('register') }}">Create account</x-button>
         </div>
     </x-card>
 </x-layouts.guest>
