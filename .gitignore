@@ -20,6 +20,7 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/.vercel
 *.pem
 *.key
 !config/**/*.key.php
