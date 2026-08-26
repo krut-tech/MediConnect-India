@@ -33,10 +33,7 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-    'providers' => [
-        // Framework service providers are auto-discovered from vendor/.
-        // Application-specific providers live in bootstrap/providers.php.
-    ],
+    'providers' => \Illuminate\Support\ServiceProvider::defaultProviders()->toArray(),
 
     'aliases' => Facade::defaultAliases()->toArray(),
 
