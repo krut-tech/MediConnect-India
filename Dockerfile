@@ -76,7 +76,7 @@ RUN printf '%s\n' \
     '<Directory /var/www/html/public>' \
     '    AllowOverride All' \
     '    Require all granted' \
-    '    Options FollowSymLinks -MultiViews' \
+    '    Options FollowSymLinks' \
     '</Directory>' \
     '' \
     '<Directory /var/www/html/public/build>' \
