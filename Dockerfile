@@ -29,16 +29,26 @@ WORKDIR /var/www/html
 # Copy application code
 COPY . .
 
+# Remove any stale bootstrap cache that may have been committed from a
+# local dev machine — these confuse package discovery inside the container.
+RUN rm -f bootstrap/cache/*.php
+
 # Bring in built frontend assets from stage 1
 COPY --from=assets /app/public/build ./public/build
 
-# Install PHP dependencies (production only)
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+# Install PHP dependencies WITHOUT running composer scripts yet — the app
+# isn't bootstrapped (no .env / real config at build time), so
+# `artisan package:discover` fails here. We run it manually afterwards.
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
 
 # Laravel needs these directories writable
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+# Now safe to discover packages (framework autoload is ready, no cached
+# config/services files interfering)
+RUN php artisan package:discover --ansi || true
 
 # Serve the Laravel public/ directory, not the repo root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
