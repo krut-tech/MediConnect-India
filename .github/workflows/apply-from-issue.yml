@@ -1,0 +1,53 @@
+name: Apply Claude Request
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  apply:
+    if: contains(github.event.issue.title, '[claude-apply]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Parse issue body and create file+PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || "";
+            const pathMatch = body.match(/Path:\s*(.+)/i);
+            const fileSep = '---FILE---';
+            if (!pathMatch || !body.includes(fileSep)) {
+              core.setFailed("Issue must include a 'Path: <path>' line and a '---FILE---' section.");
+              return;
+            }
+            const path = pathMatch[1].trim();
+            const content = body.split(fileSep)[1].trim();
+            const branch = `claude-apply-${Date.now()}`;
+            const main = (await github.rest.repos.get(context.repo)).data.default_branch;
+            // create branch from default
+            const mainBranch = await github.rest.repos.getBranch({ ...context.repo, branch: main });
+            await github.rest.git.createRef({ ...context.repo, ref: `refs/heads/${branch}`, sha: mainBranch.data.commit.sha });
+            // create or update file on new branch
+            await github.rest.repos.createOrUpdateFileContents({
+              ...context.repo,
+              path,
+              message: `Add file from Claude request`,
+              content: Buffer.from(content, 'utf8').toString('base64'),
+              branch
+            });
+            // open PR
+            const pr = await github.rest.pulls.create({
+              ...context.repo,
+              title: `Add file from Claude request`,
+              head: branch,
+              base: main,
+              body: `Auto-created from issue: ${context.payload.issue.html_url}`
+            });
+            core.info(`PR created: ${pr.data.html_url}`);
+      - name: Done
+        run: echo "Completed"
