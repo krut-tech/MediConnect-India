@@ -14,7 +14,7 @@ COPY vite.config.js tailwind.config.js postcss.config.js ./
 RUN npm run build
 
 # Laravel Vite v5 stores the manifest here
-RUN test -f public/build/.vite/manifest.json \
+RUN test -f public/build/manifest.json \
     && test -d public/build/assets \
     && test -n "$(find public/build/assets -type f | head -n 1)"
 
@@ -64,7 +64,7 @@ RUN rm -f bootstrap/cache/*.php
 COPY --from=assets /app/public/build ./public/build
 
 # Verify the files copied correctly
-RUN test -f public/build/.vite/manifest.json \
+RUN test -f public/build/manifest.json \
     && test -d public/build/assets \
     && test -n "$(find public/build/assets -type f | head -n 1)"
 
