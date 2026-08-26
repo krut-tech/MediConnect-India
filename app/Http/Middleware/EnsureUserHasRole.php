@@ -4,25 +4,68 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * PLACEHOLDER — not implemented in Phase 2.
+ * Real implementation — Phase 4 (Authentication / Authorization).
  *
- * Will eventually check the current user's `staff_assignments` /
- * `role_permissions` rows (the existing Supabase RBAC data — see
- * DATABASE_MAPPING.md) against a required role/permission passed as a
- * middleware parameter, e.g. `role:doctor` or `role:facility_admin`.
+ * Data-driven, per the existing no-hardcoded-role-string convention
+ * already established elsewhere in this codebase (DashboardController's
+ * docblock; DATABASE_MAPPING.md: "RBAC as data, not hardcoded — Laravel
+ * policies should query this, not hardcode role checks"). This class
+ * introduces no new authorization architecture — it reuses the exact
+ * `staff_assignments` resolution query (active, non-deleted, ordered by
+ * `is_primary`) that DashboardController already relies on to tell
+ * "platform_staff"/"facility_staff" apart from "patient"/"no_role".
  *
- * This is meant to mirror — not replace — the authorization already
- * enforced by RLS at the database layer. It exists so route definitions
- * can express intent clearly once real modules are built.
+ * Two modes:
+ *
+ *   1. `role` (no parameters) — requires the authenticated user to
+ *      resolve to at least one active `staff_assignments` row, i.e. any
+ *      real role at all. Use this to gate a screen to "staff, whoever
+ *      they are" without guessing which `roles.code` values exist —
+ *      appropriate while `roles` may still have few/no seeded rows.
+ *   2. `role:some_code,another_code` — additionally requires the
+ *      resolved assignment's `role.code` to match one of the given
+ *      codes. This class never invents or hardcodes which codes are
+ *      valid; the codes are supplied by the route definition and
+ *      checked against live `roles.code` data.
+ *
+ * This mirrors, and does not replace, the authorization Supabase RLS
+ * already enforces at the database layer — it exists so route
+ * definitions can express intent in application code too.
+ *
+ * Must run after `supabase.auth` (which populates the guard). Fails
+ * closed (403) if no user is resolved, rather than assuming one.
  */
 class EnsureUserHasRole
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        // Intentionally not implemented yet. See class docblock.
+        $user = Auth::guard('web')->user();
+
+        if (! $user) {
+            abort(403);
+        }
+
+        $assignment = $user->staffAssignments()
+            ->with('role')
+            ->whereNull('deleted_at')
+            ->where(function ($query) {
+                $query->whereNull('valid_until')->orWhere('valid_until', '>', now());
+            })
+            ->orderByDesc('is_primary')
+            ->first();
+
+        if (! $assignment || ! $assignment->role) {
+            abort(403);
+        }
+
+        if ($roles !== [] && ! in_array($assignment->role->code, $roles, true)) {
+            abort(403);
+        }
+
         return $next($request);
     }
 }

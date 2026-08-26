@@ -14,8 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Named aliases for auth/role gating. 'supabase.auth' and 'guest'
         // are real implementations as of Phase 3 Milestone 1 (Auth
-        // Foundation). 'role' remains a placeholder — real role/scope
-        // enforcement is a later, separate milestone.
+        // Foundation). 'role' is a real implementation as of Phase 4 —
+        // see app/Http/Middleware/EnsureUserHasRole.php.
         $middleware->trustProxies(at: '*');
         
         $middleware->alias([
