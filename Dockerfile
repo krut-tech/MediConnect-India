@@ -65,17 +65,28 @@ RUN sed -ri 's!DocumentRoot /var/www/html!DocumentRoot /var/www/html/public!g' \
     /etc/apache2/sites-available/000-default.conf \
     /etc/apache2/sites-available/default-ssl.conf 2>/dev/null || true
 
+# Serve Laravel public directory and Vite/Tailwind build assets
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+
+RUN sed -ri 's!DocumentRoot /var/www/html!DocumentRoot /var/www/html/public!g' \
+    /etc/apache2/sites-available/000-default.conf \
+    /etc/apache2/sites-available/default-ssl.conf 2>/dev/null || true
+
 RUN printf '%s\n' \
     '<Directory /var/www/html/public>' \
     '    AllowOverride All' \
     '    Require all granted' \
+    '    Options FollowSymLinks -MultiViews' \
+    '</Directory>' \
+    '' \
+    '<Directory /var/www/html/public/build>' \
+    '    AllowOverride None' \
+    '    Require all granted' \
     '    Options FollowSymLinks' \
     '</Directory>' \
+    '' \
+    'Alias /build/ /var/www/html/public/build/' \
     > /etc/apache2/conf-available/laravel.conf \
-    && a2enconf laravel
-
-# Allow .htaccess overrides (Laravel routing)
-RUN printf '<Directory /var/www/html/public>\n\tAllowOverride All\n\tRequire all granted\n</Directory>\n' > /etc/apache2/conf-available/laravel.conf \
     && a2enconf laravel
 
 COPY docker/entrypoint.sh /entrypoint.sh
