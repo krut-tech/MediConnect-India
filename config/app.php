@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Facade;
+use Illuminate\Support\ServiceProvider;
 
 return [
 
@@ -33,10 +34,9 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-    'providers' => [
-        // Framework service providers are auto-discovered from vendor/.
+    'providers' => ServiceProvider::defaultProviders()->merge([
         // Application-specific providers live in bootstrap/providers.php.
-    ],
+    ])->toArray(),
 
     'aliases' => Facade::defaultAliases()->toArray(),
 
