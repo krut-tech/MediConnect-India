@@ -44,11 +44,6 @@
         ],
         "post-create-project-cmd": [
             "@php artisan key:generate --ansi"
-        ],
-        "vercel": [
-            "@php artisan package:discover --ansi",
-            "@php artisan config:clear",
-            "@php artisan view:clear"
         ]
     },
     "extra": {
