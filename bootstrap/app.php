@@ -12,6 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Trust all proxies so Vercel's terminating reverse proxy is
+        // recognized and X-Forwarded-Proto is honored. Without this,
+        // Laravel sees the internal request as plain HTTP and generates
+        // http:// asset/URL links behind Vercel's HTTPS edge, causing
+        // mixed-content blocking in the browser.
+        $middleware->trustProxies(at: '*');
+
         // Named aliases for auth/role gating. 'supabase.auth' and 'guest'
         // are real implementations as of Phase 3 Milestone 1 (Auth
         // Foundation). 'role' remains a placeholder — real role/scope
