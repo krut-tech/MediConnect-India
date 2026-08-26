@@ -36,19 +36,25 @@ RUN rm -f bootstrap/cache/*.php
 # Bring in built frontend assets from stage 1
 COPY --from=assets /app/public/build ./public/build
 
-# Install PHP dependencies WITHOUT running composer scripts yet — the app
-# isn't bootstrapped (no .env / real config at build time), so
-# `artisan package:discover` fails here. We run it manually afterwards.
-RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-scripts
+# Laravel's artisan bootstrapping (used by package:discover during
+# composer install) needs a .env file to exist, even a dummy one — real
+# values come from Render's environment variables at runtime and take
+# precedence over anything in this file.
+RUN cp .env.example .env
+
+# Install PHP dependencies (production only). Scripts run normally now
+# that .env exists, so package:discover succeeds and registers the
+# framework's core providers (filesystem, view, etc.) correctly.
+RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+# Generate a temporary build-time APP_KEY so artisan doesn't complain;
+# Render's real APP_KEY env var overrides this at runtime.
+RUN php artisan key:generate --ansi --force
 
 # Laravel needs these directories writable
 RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
-
-# Now safe to discover packages (framework autoload is ready, no cached
-# config/services files interfering)
-RUN php artisan package:discover --ansi || true
 
 # Serve the Laravel public/ directory, not the repo root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
