@@ -7,8 +7,12 @@
 
     <title>{{ $title ?? config('app.name') }}</title>
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite([
+        'resources/css/app.css',
+        'resources/js/app.js',
+    ], 'build')
 </head>
+
 <body class="min-h-screen bg-surface-subtle text-ink font-sans">
     {{ $slot }}
 </body>
