@@ -36,6 +36,8 @@ RUN rm -f bootstrap/cache/*.php
 # Bring in built frontend assets from stage 1
 COPY --from=assets /app/public/build ./public/build
 
+RUN test -f public/build/manifest.json \
+    && test -d public/build/assets
 # Laravel's artisan bootstrapping (used by package:discover during
 # composer install) needs a .env file to exist, even a dummy one — real
 # values come from Render's environment variables at runtime and take
@@ -58,8 +60,19 @@ RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framewor
 
 # Serve the Laravel public/ directory, not the repo root
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf \
-    && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+RUN sed -ri 's!DocumentRoot /var/www/html!DocumentRoot /var/www/html/public!g' \
+    /etc/apache2/sites-available/000-default.conf \
+    /etc/apache2/sites-available/default-ssl.conf 2>/dev/null || true
+
+RUN printf '%s\n' \
+    '<Directory /var/www/html/public>' \
+    '    AllowOverride All' \
+    '    Require all granted' \
+    '    Options FollowSymLinks' \
+    '</Directory>' \
+    > /etc/apache2/conf-available/laravel.conf \
+    && a2enconf laravel
 
 # Allow .htaccess overrides (Laravel routing)
 RUN printf '<Directory /var/www/html/public>\n\tAllowOverride All\n\tRequire all granted\n</Directory>\n' > /etc/apache2/conf-available/laravel.conf \
