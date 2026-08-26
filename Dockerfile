@@ -14,8 +14,9 @@ COPY vite.config.js tailwind.config.js postcss.config.js ./
 RUN npm run build
 
 # Verify Vite production assets were generated
-RUN test -f public/build/manifest.json \
-    && test -d public/build/assets
+RUN test -f public/build/.vite/manifest.json \
+    && test -d public/build/assets \
+    && test -n "$(find public/build/assets -type f | head -n 1)"
 
 
 # ============================================================
