@@ -16,6 +16,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // are real implementations as of Phase 3 Milestone 1 (Auth
         // Foundation). 'role' remains a placeholder — real role/scope
         // enforcement is a later, separate milestone.
+        $middleware->trustProxies(at: '*');
+        
         $middleware->alias([
             'supabase.auth' => \App\Http\Middleware\VerifySupabaseSession::class,
             'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
