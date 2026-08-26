@@ -21,6 +21,15 @@ use Illuminate\Support\Facades\Route;
 | already-verified handle_new_auth_user trigger). No role/staff/patient
 | linkage happens here — that is later, separately approved work.
 |
+| Phase 4 adds real role enforcement via 'role'
+| (see app/Http/Middleware/EnsureUserHasRole.php). Applied only to
+| '/patients': today it is the one existing screen that lists PII
+| (every patient, unscoped) to any authenticated user, including a
+| plain patient-role account — that is the concrete authorization gap
+| Phase 4 closes. '/facilities' stays open to any authenticated user;
+| it is a non-PII, safe-to-browse directory per DATABASE_MAPPING.md and
+| isn't part of the gap being fixed here.
+|
 | Doctor/Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain
 | out of scope for this phase.
 |
@@ -43,5 +52,11 @@ Route::middleware(['supabase.auth'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/facilities', [FacilityController::class, 'index'])->name('facilities.index');
     Route::get('/facilities/{facility}', [FacilityController::class, 'show'])->name('facilities.show');
-    Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
+
+    // Any authenticated staff member (any active staff_assignments row,
+    // any role) — not open to plain patient-role accounts or
+    // no-role accounts. See app/Http/Middleware/EnsureUserHasRole.php.
+    Route::middleware(['role'])->group(function () {
+        Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
+    });
 });

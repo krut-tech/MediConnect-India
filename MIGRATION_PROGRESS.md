@@ -1,6 +1,31 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 3 Milestone 3 (Auth Foundation) — public auth complete. Staff invitation and patient-profile creation are separate, not-yet-approved next steps (Option C, staged).
+**Current phase:** Phase 4 (Authentication / Authorization) — public auth (Phase 3 Milestone 3, below) plus role enforcement (`EnsureUserHasRole`) applied to `/patients`. Staff invitation and patient-profile creation are separate, not-yet-approved next steps (Option C, staged). Note: this file previously used its own "Phase 3 Milestone N" numbering for what the project roadmap calls "Phase 4" — flagged and reconciled here rather than left to drift further.
+
+## Phase 4 — Role Authorization (EnsureUserHasRole)
+
+### What was built
+- **`EnsureUserHasRole`** — real implementation, replacing the Phase 2 pass-through. Data-driven per the existing convention (`DATABASE_MAPPING.md`: "RBAC as data, not hardcoded"; `DashboardController`'s own docblock): reuses the exact `staff_assignments` resolution query (active, non-deleted, `is_primary`-ordered) `DashboardController` already uses, rather than inventing a new authorization path. No-parameter mode (`role`) requires any active staff assignment; parameterized mode (`role:code_a,code_b`) additionally matches `role.code` against codes supplied by the route — this class never hardcodes which codes are valid.
+- **Applied to `/patients` only** — the concrete, existing authorization gap: `PatientController::index` lists every patient in the system, unscoped, and was reachable by any authenticated user including a plain patient-role account. `/facilities` deliberately stays open (non-PII, safe-to-browse per `DATABASE_MAPPING.md`) — not part of this gap.
+- `bootstrap/app.php` comment updated (previously said `'role'` was still a placeholder).
+- `tests/Feature/RoleAuthorizationTest.php` — 3 tests: unauthenticated redirect, authenticated-but-no-staff-assignment forbidden (403), and a control case confirming `/facilities` remains open (guards against someone widening the `role` group later by accident).
+
+### Session-driver question (explicitly evaluated, not changed)
+`VerifySupabaseSession` only reads/writes Laravel's own session store (currently `SESSION_DRIVER=file`) — it doesn't touch the DB or Supabase per request. This is compatible with every Phase 4 acceptance item; nothing in Phase 4 requires session persistence across instances or restarts, and the app is currently deployed as a single Render service. Left unchanged, per the instruction not to make speculative changes. **Flagged, not fixed:** file-based sessions will not survive a Render restart/redeploy and won't work if this service is ever scaled to more than one instance — worth a deliberate decision (Redis, DB-backed sessions, or a Render persistent disk) before that happens, but it is not a Phase 4 blocker today.
+
+### Testing results (Phase 4)
+
+| Check | Result | Notes |
+|---|---|---|
+| PHP syntax lint (`php -l`, all 39 PHP files, full repo) | **PASS** | Actually executed — PHP 8.3 CLI installed in-session; zero syntax errors |
+| `npm install` + `vite build` | **PASS** | Actually executed — unrelated to this change, re-run to confirm nothing broke; CSS output unchanged at 33.13KB |
+| Manual route cross-check | **PASS** | `patients.index` still resolves; `role` alias present in `bootstrap/app.php` and used correctly in `routes/web.php` |
+| `composer install` / `php artisan test` (`RoleAuthorizationTest`, `AuthTest`, `Phase3UiTest`, `FoundationTest`) | **BLOCKED / NOT RUN** | Re-attempted directly in this session with a manually-downloaded `composer.phar` (from GitHub releases, an allowed domain) — `repo.packagist.org` still returns HTTP 403 in this sandbox. Confirmed as a genuine, still-current network restriction, not assumed. Tests are written and lint-checked, not executed. |
+| Manual secret scan | **PASS** | No credentials/tokens introduced |
+| Supabase schema/data change check | **NOT RE-VERIFIED THIS SESSION** | Supabase tool access required an approval step not received in this session; no writes were attempted regardless — this change touches no migrations, no `database/` files, and no live data |
+| Live Render deployment + runtime logs | **See chat report** | This file only covers what ran in the sandbox; live verification results are reported separately, not duplicated here to avoid drift between two "source of truth" copies |
+
+**No runtime "PASS" is claimed for anything that wasn't actually executed**, consistent with this file's existing convention.
 
 ## Phase 3 — Milestone 1 (Facilities + Patients directories)
 
@@ -124,7 +149,7 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 |---|---|---|
 | PHP syntax lint (`php -l`, 27 files) | **PASS** | Zero syntax errors |
 | `composer validate` | **PASS** | `composer.json` structurally valid |
-| `composer install` | **BLOCKED** | `repo.packagist.org` returns HTTP 403 in this sandboxed environment (network allowlist doesn't include it). Not a code defect — run `composer install` on your own machine or a CI runner with normal internet access |
+| `composer install` | **BLOCKED** | `repo.packagist.org` returns HTTP 403 in this sandboxed environment (network allowlist doesn't include it). Not a code defect - run `composer install` on your own machine or a CI runner with normal internet access |
 | `npm install` | **PASS** | 116 packages installed cleanly |
 | `npm audit` | **PASS w/ note** | 2 known vulnerabilities in `esbuild`/`vite`'s **dev server only** (moderate/high, dev-only attack surface, not production build) — worth a `vite` version bump in a later pass, not urgent |
 | `vite build` (Tailwind + JS) | **PASS** | Built in 1.1s; verified the custom `primary-600` teal token (`#237373`) actually compiled into the output CSS as `rgb(35 115 115)` — design tokens confirmed working end-to-end |
