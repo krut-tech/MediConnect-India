@@ -86,4 +86,20 @@ class Facility extends Model
         return $this->belongsToMany(Service::class, 'facility_services', 'facility_id', 'service_id')
             ->withPivot('created_at');
     }
+
+    /**
+     * Phase 5.1 — inverse of Patient::registeringFacility(). Additive
+     * Eloquent convenience only; this does not widen who can actually
+     * read a given patient row. Every patient this returns is still
+     * subject to the live `patients` RLS policies for the requesting
+     * user (patients_select_own / patients_select_assigned_doctor /
+     * patients_select_registering_facility) — a facility-scoped staff
+     * query through this relation will only ever come back with rows
+     * that same staff member could already see via
+     * patients_select_registering_facility directly.
+     */
+    public function patients()
+    {
+        return $this->hasMany(Patient::class, 'registering_facility_id');
+    }
 }
