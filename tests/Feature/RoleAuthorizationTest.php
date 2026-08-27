@@ -7,12 +7,21 @@ use Tests\TestCase;
 /**
  * Phase 4 — Role Authorization (EnsureUserHasRole).
  *
- * Covers the one route Phase 4 actually gates: '/patients'. Deliberately
+ * Covers the one route Phase 4 actually gates: '/patients' (and, as of
+ * Phase 5.1, '/patients/{patient}' — same 'role' group). Deliberately
  * does NOT invent role-code fixtures (e.g. 'doctor') since this class
  * never hardcodes which codes are valid — see the middleware's own
  * docblock. These tests only exercise the no-parameter mode ("does the
  * user resolve to ANY active staff_assignments row"), which is the mode
  * actually applied to a route today.
+ *
+ * SESSION FIXTURE NOTE (fixed during Phase 5.1, see commit message):
+ * every route these tests exercise now sits behind 'supabase.rls'
+ * (Phase 5 Step 3) in addition to 'supabase.auth'/'role', so each
+ * authenticated fixture below also seeds 'supabase.jwt_claims' — without
+ * it, EstablishSupabaseRlsContext fails closed with 403 before the
+ * request ever reaches 'role' or a controller, which would either mask
+ * or misrepresent what these tests are actually asserting.
  *
  * EXECUTABILITY NOTE (same honest caveat as AuthTest.php /
  * Phase3UiTest.php): requires `vendor/autoload.php`, blocked by the
@@ -35,6 +44,13 @@ class RoleAuthorizationTest extends TestCase
                 'full_name' => 'Test User',
                 'email' => 'test@example.com',
                 'phone' => null,
+            ],
+            'supabase.jwt_claims' => [
+                'sub' => $userId,
+                'role' => 'authenticated',
+                'aud' => 'authenticated',
+                'iss' => 'https://test-project.supabase.local/auth/v1',
+                'exp' => now()->addHour()->timestamp,
             ],
         ];
     }
