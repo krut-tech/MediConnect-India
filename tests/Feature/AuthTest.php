@@ -31,6 +31,18 @@ use Tests\TestCase;
  * intentionally empty). So even once composer install is unblocked,
  * expect that one test to fail on "no such table", same root cause as
  * Phase3UiTest — not a defect in the auth code being tested here.
+ *
+ * PHASE 5 STEP 3 UPDATE: routes behind 'supabase.auth' now also run
+ * behind 'supabase.rls' (App\Http\Middleware\EstablishSupabaseRlsContext),
+ * which requires a 'supabase.jwt_claims' session entry (in addition to
+ * 'supabase.expires_at'/'supabase.profile') or it fails closed with a
+ * 403 before the request reaches a controller. Every test below that
+ * exercises a route inside that group now seeds 'supabase.jwt_claims'
+ * alongside the existing session keys so it reaches exactly as far as
+ * it did pre-Step-3 — this does NOT resolve the pre-existing
+ * sqlite_testing/no-tables gap noted above, which is a separate,
+ * already-documented limitation of this sandbox, not something this
+ * update changes either way.
  */
 class AuthTest extends TestCase
 {
@@ -45,6 +57,24 @@ class AuthTest extends TestCase
             'iat' => $now,
             'exp' => $now + 3600,
         ], config('services.supabase.jwt_secret'), 'HS256');
+    }
+
+    /**
+     * Matches what AuthController::establishSession() now caches under
+     * 'supabase.jwt_claims' — used by tests that seed a session directly
+     * (bypassing a real login) to reach protected/RLS-wrapped routes.
+     *
+     * @return array<string,mixed>
+     */
+    private function fakeJwtClaims(string $userId): array
+    {
+        return [
+            'sub' => $userId,
+            'role' => 'authenticated',
+            'aud' => 'authenticated',
+            'iss' => rtrim(config('services.supabase.url'), '/').'/auth/v1',
+            'exp' => now()->addHour()->timestamp,
+        ];
     }
 
     public function test_guest_can_view_login_page(): void
@@ -110,6 +140,9 @@ class AuthTest extends TestCase
         $response->assertRedirect(route('dashboard'));
         $this->assertNotNull(session('supabase.access_token'));
         $this->assertEquals('Test User', session('supabase.profile')['full_name']);
+        // Phase 5 Step 3: the RLS context service needs this, cached
+        // from the SAME verifyAccessToken() call above — not re-decoded.
+        $this->assertEquals($userId, session('supabase.jwt_claims')['sub']);
     }
 
     public function test_login_rejects_token_with_wrong_signature(): void
@@ -138,6 +171,7 @@ class AuthTest extends TestCase
         ])->assertSessionHasErrors(['auth']);
 
         $this->assertNull(session('supabase.access_token'));
+        $this->assertNull(session('supabase.jwt_claims'));
     }
 
     public function test_authenticated_session_can_access_protected_route(): void
@@ -152,6 +186,7 @@ class AuthTest extends TestCase
                 'email' => 'test@example.com',
                 'phone' => null,
             ],
+            'supabase.jwt_claims' => $this->fakeJwtClaims($userId),
         ])->get('/dashboard')->assertOk();
     }
 
@@ -167,14 +202,18 @@ class AuthTest extends TestCase
     {
         Http::fake(['*/auth/v1/logout*' => Http::response([], 204)]);
 
+        $userId = '11111111-1111-1111-1111-111111111111';
+
         $response = $this->withSession([
             'supabase.access_token' => 'fake-token',
             'supabase.expires_at' => now()->addHour()->timestamp,
-            'supabase.profile' => ['id' => '11111111-1111-1111-1111-111111111111', 'full_name' => 'Test User'],
+            'supabase.profile' => ['id' => $userId, 'full_name' => 'Test User'],
+            'supabase.jwt_claims' => $this->fakeJwtClaims($userId),
         ])->post('/logout');
 
         $response->assertRedirect(route('login'));
         $this->assertNull(session('supabase.access_token'));
+        $this->assertNull(session('supabase.jwt_claims'));
     }
 
     public function test_already_authenticated_session_is_redirected_away_from_login_page(): void
