@@ -30,6 +30,17 @@ use Illuminate\Support\Facades\Route;
 | it is a non-PII, safe-to-browse directory per DATABASE_MAPPING.md and
 | isn't part of the gap being fixed here.
 |
+| Phase 5 Step 3 adds 'supabase.rls' — see
+| app/Http/Middleware/EstablishSupabaseRlsContext.php. Every route in
+| the authenticated group now runs inside a Postgres RLS context
+| (SET LOCAL ROLE authenticated + request.jwt.claims) derived from the
+| already-verified JWT claims cached at login. This is what makes
+| 'role' (which itself queries the RLS-protected staff_assignments
+| table) and Patient/Facility staff-assignment queries resolve
+| correctly instead of silently seeing zero rows. It is placed
+| immediately after 'supabase.auth' and before 'role' so both the role
+| check and every controller in this group run under it.
+|
 | Doctor/Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain
 | out of scope for this phase.
 |
@@ -46,7 +57,7 @@ Route::middleware(['guest'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
 });
 
-Route::middleware(['supabase.auth'])->group(function () {
+Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
@@ -56,6 +67,8 @@ Route::middleware(['supabase.auth'])->group(function () {
     // Any authenticated staff member (any active staff_assignments row,
     // any role) — not open to plain patient-role accounts or
     // no-role accounts. See app/Http/Middleware/EnsureUserHasRole.php.
+    // Runs after 'supabase.rls', so its own staff_assignments query is
+    // RLS-context-aware.
     Route::middleware(['role'])->group(function () {
         Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
     });
