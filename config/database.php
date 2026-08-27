@@ -1,12 +1,12 @@
-&lt;?php
+<?php
 
 use Illuminate\Support\Str;
 
 return [
 
-    'default' =&gt; env('DB_CONNECTION', 'pgsql'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
-    'connections' =&gt; [
+    'connections' => [
 
         /*
         |----------------------------------------------------------------
@@ -52,57 +52,57 @@ return [
         | Option A/B decision above is still open.
         |
         */
-        'pgsql' =&gt; [
-            'driver' =&gt; 'pgsql',
-            'url' =&gt; env('DATABASE_URL'),
-            'host' =&gt; env('DB_HOST', '127.0.0.1'),
-            'port' =&gt; env('DB_PORT', '5432'),
-            'database' =&gt; env('DB_DATABASE', 'postgres'),
-            'username' =&gt; env('DB_USERNAME', ''),
-            'password' =&gt; env('DB_PASSWORD', ''),
-            'charset' =&gt; 'utf8',
-            'prefix' =&gt; '',
-            'prefix_indexes' =&gt; true,
-            'search_path' =&gt; 'public',
-            'sslmode' =&gt; env('DB_SSLMODE', 'require'),
-            'options' =&gt; [
-                \PDO::ATTR_EMULATE_PREPARES =&gt; true,
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'url' => env('DATABASE_URL'),
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '5432'),
+            'database' => env('DB_DATABASE', 'postgres'),
+            'username' => env('DB_USERNAME', ''),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_SSLMODE', 'require'),
+            'options' => [
+                \PDO::ATTR_EMULATE_PREPARES => true,
             ],
         ],
 
         // Local-only fallback for running framework-level checks (routing,
         // Blade rendering, artisan commands) without ever touching the real
         // Supabase database. Never used in staging/production.
-        'sqlite_testing' =&gt; [
-            'driver' =&gt; 'sqlite',
-            'database' =&gt; env('DB_TESTING_DATABASE', database_path('testing.sqlite')),
-            'prefix' =&gt; '',
-            'foreign_key_constraints' =&gt; true,
+        'sqlite_testing' => [
+            'driver' => 'sqlite',
+            'database' => env('DB_TESTING_DATABASE', database_path('testing.sqlite')),
+            'prefix' => '',
+            'foreign_key_constraints' => true,
         ],
 
     ],
 
-    'migrations' =&gt; [
-        'table' =&gt; 'migrations',
-        'update_date_on_publish' =&gt; true,
+    'migrations' => [
+        'table' => 'migrations',
+        'update_date_on_publish' => true,
     ],
 
-    'redis' =&gt; [
+    'redis' => [
 
-        'client' =&gt; env('REDIS_CLIENT', 'phpredis'),
+        'client' => env('REDIS_CLIENT', 'phpredis'),
 
-        'options' =&gt; [
-            'cluster' =&gt; env('REDIS_CLUSTER', 'redis'),
-            'prefix' =&gt; Str::slug(env('APP_NAME', 'mediconnect'), '_').'_database_',
+        'options' => [
+            'cluster' => env('REDIS_CLUSTER', 'redis'),
+            'prefix' => Str::slug(env('APP_NAME', 'mediconnect'), '_').'_database_',
         ],
 
-        'default' =&gt; [
-            'url' =&gt; env('REDIS_URL'),
-            'host' =&gt; env('REDIS_HOST', '127.0.0.1'),
-            'username' =&gt; env('REDIS_USERNAME'),
-            'password' =&gt; env('REDIS_PASSWORD'),
-            'port' =&gt; env('REDIS_PORT', '6379'),
-            'database' =&gt; env('REDIS_DB', '0'),
+        'default' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
         ],
 
     ],
