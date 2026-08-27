@@ -19,6 +19,27 @@ use Illuminate\Http\Request;
  * an explicit approval step first.
  *
  * The Blade view marks registration/edit actions as prototype-only.
+ *
+ * ============================================================
+ * RLS SCOPING (Phase 5 Step 3)
+ * ============================================================
+ * This query is DELIBERATELY not manually scoped with a WHERE clause
+ * (e.g. "where facility_id in (...)") — that would create a second,
+ * Laravel-only authorization layer that could silently drift from the
+ * real database policies, and this project's rules explicitly forbid
+ * treating that as equivalent to fixing the underlying gap.
+ *
+ * Instead, every route in this controller's route group now runs
+ * inside a Postgres RLS context established by the 'supabase.rls'
+ * middleware (App\Http\Middleware\EstablishSupabaseRlsContext, applied
+ * in routes/web.php) BEFORE this method ever executes — SET LOCAL ROLE
+ * authenticated + request.jwt.claims, scoped to the same transaction
+ * this query runs in. Which rows come back is decided entirely by the
+ * live `patients` RLS policies (built on `resolve_own_patient_id()` /
+ * `resolve_assigned_patient_ids()` / `is_platform_admin()`, per
+ * `get_advisors`) evaluating `auth.uid()` for the real signed-in user —
+ * this method has no independent opinion about which patients a given
+ * user should see, and isn't meant to.
  */
 class PatientController extends Controller
 {
