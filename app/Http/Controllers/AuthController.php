@@ -134,6 +134,11 @@ class AuthController extends Controller
 
         // Never trust the token just because Supabase's HTTP response
         // said so — verify signature/expiry/audience/issuer ourselves.
+        // This is the ONLY place in the codebase a raw Supabase access
+        // token is decoded/verified — Phase 5 Step 3's RLS context
+        // (App\Services\SupabaseRlsContext) reuses these exact claims
+        // via the session cache below rather than re-verifying the
+        // token itself.
         $claims = $supabase->verifyAccessToken($accessToken);
 
         $profile = $supabase->fetchOwnProfile($accessToken, $claims['sub']);
@@ -162,5 +167,22 @@ class AuthController extends Controller
         // made elsewhere won't reflect here until the token is refreshed
         // or the user logs in again — acceptable for Milestone 1.
         $request->session()->put('supabase.profile', $profile);
+        // Phase 5 Step 3: cache only the specific already-verified claims
+        // App\Services\SupabaseRlsContext needs to establish a Postgres
+        // RLS context (SET LOCAL ROLE authenticated + request.jwt.claims)
+        // on the direct `pgsql`/mediconnect_app connection for
+        // RLS-protected Eloquent queries (staff_assignments, patients,
+        // facility staff assignments). This is the SAME verified-claims
+        // array produced by verifyAccessToken() above — never a second,
+        // independent JWT verification, and never anything sourced from
+        // request input. Cleared on logout/session invalidation below,
+        // same as supabase.profile.
+        $request->session()->put('supabase.jwt_claims', [
+            'sub' => $claims['sub'],
+            'role' => $claims['role'] ?? 'authenticated',
+            'aud' => $claims['aud'] ?? null,
+            'iss' => $claims['iss'] ?? null,
+            'exp' => $claims['exp'] ?? null,
+        ]);
     }
 }
