@@ -1,6 +1,41 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 4 (Authentication / Authorization) — public auth (Phase 3 Milestone 3, below) plus role enforcement (`EnsureUserHasRole`) applied to `/patients`. Staff invitation and patient-profile creation are separate, not-yet-approved next steps (Option C, staged). Note: this file previously used its own "Phase 3 Milestone N" numbering for what the project roadmap calls "Phase 4" — flagged and reconciled here rather than left to drift further.
+**Current phase:** Phase 5 Step 3 (Supabase JWT → PostgreSQL RLS context) — COMPLETE. Phase 4 (role authorization) remains as documented below, unchanged. Staff invitation and patient-profile creation are still separate, not-yet-approved next steps.
+
+## Phase 5 Step 3 — RLS context / JWT propagation
+
+### What was built
+- **`App\Services\SupabaseRlsContext`** — reads already-verified JWT claims cached at login (`supabase.jwt_claims`, added to the session in `AuthController::establishSession()`), never decodes/verifies a JWT itself. `run()` wraps a callback in `DB::transaction()` and issues `SET LOCAL ROLE authenticated` plus transaction-local `set_config('request.jwt.claims', ...)` / `request.jwt.claim.sub` / `request.jwt.claim.role`. Fails closed (throws) if no verified `sub` claim is present, before any DB connection is touched.
+- **`App\Http\Middleware\EstablishSupabaseRlsContext`** (alias `supabase.rls`) — reads claims via `claimsFromSession()`, aborts 403 if none, otherwise wraps the rest of the request (including `role`/`EnsureUserHasRole` and every controller in the group) in the RLS context.
+- **`routes/web.php`** — `supabase.rls` placed immediately after `supabase.auth` and before `role`, applied to the whole authenticated group (`/logout`, `/dashboard`, `/facilities`, `/facilities/{facility}`, `/patients`). This is what makes `role`'s own `staff_assignments` query, and `PatientController`/`FacilityController`'s staff-assignment relations, resolve correctly instead of silently seeing zero rows under RLS.
+- **`AuthController::establishSession()`** — now also caches the verified `sub`/`role`/`aud`/`iss`/`exp` subset of `SupabaseAuthService::verifyAccessToken()`'s output under `supabase.jwt_claims`; cleared on logout, same as `supabase.profile`.
+- **`PatientController`/`FacilityController`/`EnsureUserHasRole`** — docblocks added documenting that their RLS-protected queries depend on `supabase.rls` running first; no query logic changed (the security boundary is the middleware-established transaction context, not a manually bolted-on `WHERE` clause, per the explicit instruction not to fake it that way).
+- **`tests/Feature/AuthTest.php`** — updated so tests that seed a session directly (bypassing real login) to reach `/dashboard` or `/logout` also seed `supabase.jwt_claims`, since those routes now sit behind `supabase.rls` too.
+- **`tests/Unit/SupabaseRlsContextTest.php`** (new) — covers `claimsFromSession()` (missing/expired/no-sub/valid) and the fail-closed guard in `run()` before any DB transaction opens. Does **not** include a DB-level two-UUID RLS contract test — see the file's own docblock for why (no isolated Postgres test DB exists; the only real Postgres reachable is the live project, and inserting throwaway rows there to prove denial would be a production write this project's standing rules don't allow without separate approval). Documented as NOT POSSIBLE rather than faked.
+
+### Live, read-only DB-level verification performed this session (via Supabase MCP, no writes)
+- `mediconnect_app`: `rolbypassrls = false`, `rolinherit = false` (NOINHERIT), `rolsuper = false`, `rolcanlogin = true`; member of `authenticated` only, never `service_role` — matches Step 1's original grant exactly, unchanged.
+- `get_advisors(security)` re-run: only the same pre-existing, non-blocking findings from before Step 3 (RLS-enabled-no-policy on empty future-month `audit_log` partitions, extensions-in-public hygiene, `SECURITY DEFINER` helper functions callable via RPC, leaked-password-protection toggle) — no new findings introduced by Step 3's code.
+
+### Testing results (Phase 5 Step 3)
+
+| Check | Result | Notes |
+|---|---|---|
+| Manual review of all new/changed PHP files (no `php -l` available — apt's PHP package failed to install in this sandbox session, a new/different blocker than the usual `packagist.org` one) | **PASS** | Reviewed by hand; one real mistake was made and caught: a file-write call HTML-entity-encoded a new test file (encoded angle brackets instead of literal ones) — the exact same failure mode already documented in this repo's history (commit `8151b6ac`). Caught by re-fetching the pushed file's raw content, not assumed correct, and fixed in a follow-up commit; re-verified byte-for-byte after the fix. |
+| `composer install` / `php artisan test` | **BLOCKED / NOT RUN** | Same sandbox limitation as every prior phase — no working PHP CLI in this session (apt fetch 404s on the exact `php8.3-*` package versions; `packagist.org` also unreachable regardless) |
+| Manual secret scan | **PASS** | `config/database.php` still reads only from env vars; no credentials, JWT secrets, or connection strings with passwords appear anywhere in the diff |
+| Supabase security advisors (`get_advisors`) | **PASS** | Re-run live before/after — only pre-existing, non-blocking findings; nothing new |
+| Live DB role check (`mediconnect_app` privileges) | **PASS** | See above — re-confirmed live, matches Step 1 exactly |
+| GitHub Actions / CI | **N/A** | No CI configured for this repo |
+| Render deployment | **PASS** | Commit `6dc1f91` (Step 3.7) deployed and reached `live` status; the corrective entity-encoding fix and this documentation update were pushed after |
+| Production runtime error logs (SQLSTATE/PDOException/permission denied/500) since deploy | **PASS, with caveat** | Zero matching log lines in the post-deploy window checked this session — but that window also saw no confirmed real user traffic, so this is "no errors observed," not "traffic was exercised and passed clean." A manual click-through of `/`, `/login`, `/dashboard`, `/facilities`, `/patients`, `/logout` by a real logged-in user is still the strongest confirmation and hasn't been done in-session (no browser tool reaches an unauthenticated Render free-tier URL from this sandbox). |
+
+**No runtime "PASS" is claimed for anything that wasn't actually executed or actually observed**, consistent with this file's existing convention.
+
+## Known gap carried forward
+- **DB-level RLS contract test** (two different UUIDs, asserted under `SET LOCAL ROLE authenticated` / `request.jwt.claims`, never as `postgres`/`service_role`) is still not automated anywhere. Doing this properly needs a dedicated, isolated Postgres test database with the same RLS policies migrated in (a local Postgres container, or a throwaway Supabase branch via the `create_branch` tool already available to this project) wired into `phpunit.xml` as a second connection — flagged for a future, separately-scoped task, not attempted against the live project.
+
+---
 
 ## Phase 4 — Role Authorization (EnsureUserHasRole)
 
@@ -164,16 +199,15 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 
 ## Known gaps / open decisions requiring your input
 
-1. **Supabase connection architecture** (flagged in `config/database.php`): direct Postgres connection with per-request session GUCs to satisfy RLS, vs. going through PostgREST/RPC per request. Needs a decision before any real data flows through the app.
+1. **Supabase connection architecture** (flagged in `config/database.php`): direct Postgres connection with per-request session GUCs to satisfy RLS, vs. going through PostgREST/RPC per request. **Resolved in Phase 5 Steps 1–3**: Option A (direct connection, dedicated `mediconnect_app` role, Transaction Pooler, per-transaction `SET LOCAL` RLS context) — see Phase 5 Step 3 section above.
 2. **`patients` write path**: the Edge Function/RPC referenced in the schema's own comments doesn't exist yet (`list_edge_functions` returned empty). Needs clarification/building before the Patient module starts.
-3. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel connectors) — if any code or wireframes exist only on your machine, worth sharing before Phase 3.
+3. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel/Render connectors) — if any code or wireframes exist only on your machine, worth sharing before further phases.
 
 ## Git
 
 - Repo: `krut-tech/MediConnect-India`
-- Branch pushed to: *(see commit details in the chat report — filled in after push)*
-- Commit message: `feat: create Laravel application foundation`
+- Main branch, deployed to Render (`mediconnect-india` service, auto-deploy on push)
 
 ## Next task
 
-Waiting for your review/approval before Phase 3 (Blade + Tailwind Design System deep pass / first real module). No Patient/Doctor/Facility/Appointment/Clinical/Lab/Pharmacy/Billing/Admin logic has been started, per the stop condition in your instructions.
+Phase 5 Step 3 is complete. Waiting for explicit approval before any further Phase 5 step or Phase 5.1 feature development, per the stop condition in the Step 3 instructions.
