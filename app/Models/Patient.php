@@ -10,22 +10,35 @@ use Illuminate\Database\Eloquent\Model;
  * Maps to the existing public.patients table.
  *
  * ============================================================
- * WRITE-PATH WARNING (Decision W4 — documented on the live table)
+ * WRITE-PATH STATUS (Decision W4 — re-verified live, Phase 5.1)
  * ============================================================
- * Supabase's own comment on this table states registration/demographic
- * updates are meant to go through "a narrowly-scoped Edge Function/RPC
- * (service_role) — no general facility-staff UPDATE policy exists here
- * by design."
+ * Supabase's own comment on this table states registration is meant to
+ * go through "a narrowly-scoped Edge Function/RPC (service_role)". As of
+ * the Phase 5.1 scope audit, `list_edge_functions` still returns NO
+ * deployed functions for this project, and `patients` still has NO
+ * INSERT policy at all — so patient registration/creation remains
+ * genuinely blocked at the database layer. DO NOT attempt to create a
+ * Patient row from application code, and do not reach for a
+ * service-role/postgres connection to work around that — that is
+ * exactly the kind of change this project requires stopping and asking
+ * about first.
  *
- * As of this Phase 2 audit, `list_edge_functions` returned NO deployed
- * functions for this project — so that RPC/Edge Function does not yet
- * exist (or exists as a plain Postgres function not yet located). Until
- * that is confirmed and the safe write path is built, DO NOT call
- * ->save() / ->update() / mass-assignment on this model from application
- * code expecting it to work for facility staff — it is expected to be
- * rejected by RLS, and reaching for a service-role connection to "fix"
- * that is exactly the kind of change this project requires stopping and
- * asking about first.
+ * UPDATE is a different story from registration and IS supported today,
+ * live, for two specific cases (verified against pg_policies this
+ * session, not assumed from an older audit):
+ *   - `patients_update_own`      — a patient updating their own row
+ *                                  (`user_id = auth.uid()`)
+ *   - `patients_update_assigned_doctor` — a doctor/staff member updating
+ *                                  a patient they are actually assigned
+ *                                  to, via `resolve_assigned_patient_ids()`
+ * There is still NO general facility-staff UPDATE policy — a facility
+ * admin or unassigned staff member who can merely SELECT a patient
+ * (via `patients_select_registering_facility`) cannot UPDATE it. Any
+ * code that writes to this model must go through the two supported
+ * paths above and treat a zero-row-affected UPDATE as "not permitted",
+ * never assume success just because Eloquent's save()/update() returned
+ * true — that return value does not reflect whether RLS actually
+ * matched any rows.
  */
 class Patient extends Model
 {
