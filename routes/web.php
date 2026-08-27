@@ -23,12 +23,12 @@ use Illuminate\Support\Facades\Route;
 |
 | Phase 4 adds real role enforcement via 'role'
 | (see app/Http/Middleware/EnsureUserHasRole.php). Applied only to
-| '/patients': today it is the one existing screen that lists PII
-| (every patient, unscoped) to any authenticated user, including a
-| plain patient-role account — that is the concrete authorization gap
-| Phase 4 closes. '/facilities' stays open to any authenticated user;
-| it is a non-PII, safe-to-browse directory per DATABASE_MAPPING.md and
-| isn't part of the gap being fixed here.
+| '/patients' and, as of Phase 5.1, '/patients/{patient}': these are the
+| screens that list/show PII to any authenticated user, so both require
+| an active staff assignment before RLS is even consulted per-row.
+| '/facilities' stays open to any authenticated user; it is a non-PII,
+| safe-to-browse directory per DATABASE_MAPPING.md and isn't part of the
+| gap being fixed here.
 |
 | Phase 5 Step 3 adds 'supabase.rls' — see
 | app/Http/Middleware/EstablishSupabaseRlsContext.php. Every route in
@@ -40,6 +40,12 @@ use Illuminate\Support\Facades\Route;
 | correctly instead of silently seeing zero rows. It is placed
 | immediately after 'supabase.auth' and before 'role' so both the role
 | check and every controller in this group run under it.
+|
+| Phase 5.1 adds /my-profile (patient-facing own profile — deliberately
+| NOT behind 'role', since a plain patient has no staff_assignments row
+| and would be 403'd by it) and /patients/{patient} (staff-facing detail
+| + limited update, inside the existing 'role' group). Neither adds any
+| new middleware or changes existing route behavior.
 |
 | Doctor/Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain
 | out of scope for this phase.
@@ -64,6 +70,16 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     Route::get('/facilities', [FacilityController::class, 'index'])->name('facilities.index');
     Route::get('/facilities/{facility}', [FacilityController::class, 'show'])->name('facilities.show');
 
+    // Patient's own profile. No 'role' gate — a plain patient account
+    // has no staff_assignments row and would be incorrectly 403'd by
+    // EnsureUserHasRole if this sat in the group below. Identity comes
+    // solely from the verified Supabase session (Auth::user()); neither
+    // action in PatientController accepts a patient id from the
+    // request/route, and patients_select_own/patients_update_own RLS
+    // independently enforce "own record only" regardless.
+    Route::get('/my-profile', [PatientController::class, 'myProfile'])->name('patients.my-profile');
+    Route::patch('/my-profile', [PatientController::class, 'updateMyProfile'])->name('patients.my-profile.update');
+
     // Any authenticated staff member (any active staff_assignments row,
     // any role) — not open to plain patient-role accounts or
     // no-role accounts. See app/Http/Middleware/EnsureUserHasRole.php.
@@ -71,5 +87,7 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     // RLS-context-aware.
     Route::middleware(['role'])->group(function () {
         Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
+        Route::get('/patients/{patient}', [PatientController::class, 'show'])->name('patients.show');
+        Route::patch('/patients/{patient}', [PatientController::class, 'update'])->name('patients.update');
     });
 });
