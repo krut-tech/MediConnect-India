@@ -17,6 +17,17 @@ use Illuminate\Http\Request;
  *
  * The live Supabase project currently has 0 rows in `facilities` — this
  * is expected to render the genuine empty state, not fabricated rows.
+ *
+ * RLS SCOPING (Phase 5 Step 3): both methods below now also run inside
+ * the 'supabase.rls' context (see routes/web.php /
+ * App\Http\Middleware\EstablishSupabaseRlsContext), same as every other
+ * route in this group. `index()`'s browsing behavior is deliberately
+ * unchanged — facilities themselves are non-PII and safe-to-browse per
+ * DATABASE_MAPPING.md, so this is not expected to restrict what any
+ * authenticated user already saw. `show()`'s `staffAssignments` relation
+ * is the part that actually needed this: it's a query against the same
+ * RLS-protected `staff_assignments` table PatientController and 'role'
+ * depend on, and previously ran with no auth.uid() context at all.
  */
 class FacilityController extends Controller
 {
