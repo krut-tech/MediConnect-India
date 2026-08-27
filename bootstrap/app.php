@@ -15,13 +15,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // Named aliases for auth/role gating. 'supabase.auth' and 'guest'
         // are real implementations as of Phase 3 Milestone 1 (Auth
         // Foundation). 'role' is a real implementation as of Phase 4 —
-        // see app/Http/Middleware/EnsureUserHasRole.php.
+        // see app/Http/Middleware/EnsureUserHasRole.php. 'supabase.rls'
+        // is a real implementation as of Phase 5 Step 3 — see
+        // app/Http/Middleware/EstablishSupabaseRlsContext.php. It must
+        // always be placed AFTER 'supabase.auth' and BEFORE 'role' (or
+        // any controller code) in route middleware stacks, since both
+        // 'role' and most authenticated controllers run RLS-protected
+        // Eloquent queries that need this context to resolve correctly.
         $middleware->trustProxies(at: '*');
         
         $middleware->alias([
             'supabase.auth' => \App\Http\Middleware\VerifySupabaseSession::class,
             'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+            'supabase.rls' => \App\Http\Middleware\EstablishSupabaseRlsContext::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
