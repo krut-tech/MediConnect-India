@@ -1,1 +1,202 @@
-PD9waHAKCm5hbWVzcGFjZSBBcHBcU2VydmljZXM7Cgp1c2UgRmlyZWJhc2VcSldUXEV4cGlyZWRFeGNlcHRpb247CnVzZSBGaXJlYmFzZVxKV1RcSldLOwp1c2UgRmlyZWJhc2VcSldUXEpXVDsKdXNlIEZpcmViYXNlXEpXVFxTaWduYXR1cmVJbnZhbGlkRXhjZXB0aW9uOwp1c2UgSWxsdW1pbmF0ZVxTdXBwb3J0XEZhY2FkZXNcQ2FjaGU7CnVzZSBJbGx1bWluYXRlXFN1cHBvcnRcRmFjYWRlc1xIdHRwOwp1c2UgUnVudGltZUV4Y2VwdGlvbjsKdXNlIFVuZXhwZWN0ZWRWYWx1ZUV4Y2VwdGlvbjsKCi8qKgogKiBUaGluIHdyYXBwZXIgYXJvdW5kIFN1cGFiYXNlIEF1dGggKEdvVHJ1ZSkgKyBQb3N0Z1JFU1QsIHVzZWQgb25seSB3aXRoCiAqIHRoZSBhbm9uIGtleSBhbmQgKGFmdGVyIGxvZ2luKSB0aGUgZW5kIHVzZXIncyBvd24gYWNjZXNzIHRva2VuIOKAlCBuZXZlcgogKiBzZXJ2aWNlX3JvbGUuIFRoaXMgaXMgdGhlIE9wdGlvbiBCIGludGVncmF0aW9uIHBvaW50IGFwcHJvdmVkIGZvcgogKiBNZWRpQ29ubmVjdCBJbmRpYTogTGFyYXZlbCBuZXZlciB0YWxrcyB0byBQb3N0Z3JlcyBkaXJlY3RseSBmb3IKICogYXV0aGVudGljYXRlZCByZWFkcywgaXQgZ29lcyB0aHJvdWdoIFN1cGFiYXNlIHNvIFJMUyBldmFsdWF0ZXMKICogYXV0aC51aWQoKSBuYXRpdmVseS4KICovCmNsYXNzIFN1cGFiYXNlQXV0aFNlcnZpY2UKewogICAgcHJpdmF0ZSBmdW5jdGlvbiBiYXNlVXJsKCk6IHN0cmluZwogICAgewogICAgICAgICR1cmwgPSBjb25maWcoJ3NlcnZpY2VzLnN1cGFiYXNlLnVybCcpOwoKICAgICAgICBpZiAoISAkdXJsKSB7CiAgICAgICAgICAgIHRocm93IG5ldyBSdW50aW1lRXhjZXB0aW9uKCdTVVBBQkFTRV9VUkwgaXMgbm90IGNvbmZpZ3VyZWQuJyk7CiAgICAgICAgfQoKICAgICAgICByZXR1cm4gcnRyaW0oJHVybCwgJy8nKTsKICAgIH0KCiAgICBwcml2YXRlIGZ1bmN0aW9uIGFub25LZXkoKTogc3RyaW5nCiAgICB7CiAgICAgICAgJGtleSA9IGNvbmZpZygnc2VydmljZXMuc3VwYWJhc2UuYW5vbl9rZXknKTsKCiAgICAgICAgaWYgKCEgJGtleSkgewogICAgICAgICAgICB0aHJvdyBuZXcgUnVudGltZUV4Y2VwdGlvbignU1VQQUJBU0VfQU5PTl9LRVkgaXMgbm90IGNvbmZpZ3VyZWQuJyk7CiAgICAgICAgfQoKICAgICAgICByZXR1cm4gJGtleTsKICAgIH0KCiAgICAvKioKICAgICAqIEZldGNoZXMgKGFuZCBicmllZmx5IGNhY2hlcykgdGhlIHByb2plY3QncyBwdWJsaWMgSldLUy4gU3VwYWJhc2UKICAgICAqIHByb2plY3RzIG5vdyBzaWduIGFjY2VzcyB0b2tlbnMgd2l0aCBhbiBhc3ltbWV0cmljIGtleSAoRVMyNTYpIGJ5CiAgICAgKiBkZWZhdWx0IOKAlCB2ZXJpZmljYXRpb24gbXVzdCB1c2UgdGhlIG1hdGNoaW5nIHB1YmxpYyBrZXkgbG9va2VkIHVwCiAgICAgKiBieSBga2lkYCwgbm90IGEgc3RhdGljIHNoYXJlZCBzZWNyZXQuCiAgICAgKgogICAgICogQHJldHVybiBhcnJheTxzdHJpbmcsXEZpcmViYXNlXEpXVFxLZXk+CiAgICAgKi8KICAgIHByaXZhdGUgZnVuY3Rpb24gandrcygpOiBhcnJheQogICAgewogICAgICAgICRqd2tzSnNvbiA9IENhY2hlOjpyZW1lbWJlcignc3VwYWJhc2UuandrcycsIG5vdygpLT5hZGRIb3Vycyg2KSwgZnVuY3Rpb24gKCkgewogICAgICAgICAgICAkcmVzcG9uc2UgPSBIdHRwOjphY2NlcHRKc29uKCktPmdldCgkdGhpcy0+YmFzZVVybCgpLicvYXV0aC92MS8ud2VsbC1rbm93bi9qd2tzLmpzb24nKTsKCiAgICAgICAgICAgIGlmICgkcmVzcG9uc2UtPmZhaWxlZCgpKSB7CiAgICAgICAgICAgICAgICB0aHJvdyBuZXcgUnVudGltZUV4Y2VwdGlvbignQ291bGQgbm90IGZldGNoIFN1cGFiYXNlIEpXS1MuJyk7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIHJldHVybiAkcmVzcG9uc2UtPmpzb24oKTsKICAgICAgICB9KTsKCiAgICAgICAgcmV0dXJuIEpXSzo6cGFyc2VLZXlTZXQoJGp3a3NKc29uKTsKICAgIH0KCiAgICAvKioKICAgICAqIFBPU1QgL2F1dGgvdjEvc2lnbnVwIOKAlCBjcmVhdGVzIHRoZSBhdXRoLnVzZXJzIHJvdy4gVGhlIGFscmVhZHkKICAgICAqIHZlcmlmaWVkIGBvbl9hdXRoX3VzZXJfY3JlYXRlZGAgdHJpZ2dlciBwcm92aXNpb25zIHRoZSBtYXRjaGluZwogICAgICogcHVibGljLnVzZXJzIHJvdyBzZXJ2ZXItc2lkZTsgbm90aGluZyBlbHNlIGlzIGNyZWF0ZWQgaGVyZS4KICAgICAqCiAgICAgKiBgZnVsbF9uYW1lYCBpcyBwYXNzZWQgYXMgdXNlciBtZXRhZGF0YSBzbyB0aGUgdHJpZ2dlcidzCiAgICAgKiBgcmF3X3VzZXJfbWV0YV9kYXRhIC0+PiAnZnVsbF9uYW1lJ2AgYnJhbmNoIHBpY2tzIGl0IHVwIGRpcmVjdGx5LAogICAgICogaW5zdGVhZCBvZiBmYWxsaW5nIGJhY2sgdG8gYSBkZXJpdmVkIG5hbWUuCiAgICAgKgogICAgICogUmV0dXJucyB0aGUgcmF3IGRlY29kZWQgSlNPTi4gRGVwZW5kaW5nIG9uIHRoZSBwcm9qZWN0J3MgQXV0aAogICAgICogc2V0dGluZ3MgKGVtYWlsIGNvbmZpcm1hdGlvbiBvbi9vZmYg4oCUIG5vdCBzb21ldGhpbmcgdGhpcyBhcHAgY2FuCiAgICAgKiBzZWUgb3IgYXNzdW1lKSwgdGhlIHJlc3BvbnNlIG1heSBvciBtYXkgbm90IGluY2x1ZGUgYSBzZXNzaW9uLgogICAgICogQ2FsbGVycyBtdXN0IGhhbmRsZSBib3RoIGNhc2VzOyB0aGlzIG1ldGhvZCBkb2VzIG5vdCBndWVzcy4KICAgICAqLwogICAgcHVibGljIGZ1bmN0aW9uIHNpZ25VcChzdHJpbmcgJGVtYWlsLCA/c3RyaW5nICRwaG9uZSwgc3RyaW5nICRwYXNzd29yZCwgc3RyaW5nICRmdWxsTmFtZSk6IGFycmF5CiAgICB7CiAgICAgICAgJHBheWxvYWQgPSBhcnJheV9maWx0ZXIoWwogICAgICAgICAgICAnZW1haWwnID0+ICRlbWFpbCA/OiBudWxsLAogICAgICAgICAgICAncGhvbmUnID0+ICRwaG9uZSA/OiBudWxsLAogICAgICAgICAgICAncGFzc3dvcmQnID0+ICRwYXNzd29yZCwKICAgICAgICAgICAgJ2RhdGEnID0+IFsnZnVsbF9uYW1lJyA9PiAkZnVsbE5hbWVdLAogICAgICAgIF0sIGZuICgkdmFsdWUpID0+ICR2YWx1ZSAhPT0gbnVsbCk7CgogICAgICAgICRyZXNwb25zZSA9IEh0dHA6OndpdGhIZWFkZXJzKFsnYXBpa2V5JyA9PiAkdGhpcy0+YW5vbktleSgpXSkKICAgICAgICAgICAgLT5hY2NlcHRKc29uKCkKICAgICAgICAgICAgLT5wb3N0KCR0aGlzLT5iYXNlVXJsKCkuJy9hdXRoL3YxL3NpZ251cCcsICRwYXlsb2FkKTsKCiAgICAgICAgaWYgKCRyZXNwb25zZS0+ZmFpbGVkKCkpIHsKICAgICAgICAgICAgdGhyb3cgbmV3IFJ1bnRpbWVFeGNlcHRpb24oCiAgICAgICAgICAgICAgICAkcmVzcG9uc2UtPmpzb24oJ2Vycm9yX2Rlc2NyaXB0aW9uJykgPz8gJHJlc3BvbnNlLT5qc29uKCdtc2cnKSA/PyAnUmVnaXN0cmF0aW9uIGZhaWxlZC4nCiAgICAgICAgICAgICk7CiAgICAgICAgfQoKICAgICAgICByZXR1cm4gJHJlc3BvbnNlLT5qc29uKCk7CiAgICB9CgogICAgLyoqCiAgICAgKiBQT1NUIC9hdXRoL3YxL3Rva2VuP2dyYW50X3R5cGU9cGFzc3dvcmQKICAgICAqLwogICAgcHVibGljIGZ1bmN0aW9uIHNpZ25JbldpdGhQYXNzd29yZChzdHJpbmcgJGVtYWlsLCBzdHJpbmcgJHBhc3N3b3JkKTogYXJyYXkKICAgIHsKICAgICAgICAkcmVzcG9uc2UgPSBIdHRwOjp3aXRoSGVhZGVycyhbJ2FwaWtleScgPT4gJHRoaXMtPmFub25LZXkoKV0pCiAgICAgICAgICAgIC0+YWNjZXB0SnNvbigpCiAgICAgICAgICAgIC0+cG9zdCgkdGhpcy0+YmFzZVVybCgpLicvYXV0aC92MS90b2tlbj9ncmFudF90eXBlPXBhc3N3b3JkJywgWwogICAgICAgICAgICAgICAgJ2VtYWlsJyA9PiAkZW1haWwsCiAgICAgICAgICAgICAgICAncGFzc3dvcmQnID0+ICRwYXNzd29yZCwKICAgICAgICAgICAgXSk7CgogICAgICAgIGlmICgkcmVzcG9uc2UtPmZhaWxlZCgpKSB7CiAgICAgICAgICAgIHRocm93IG5ldyBSdW50aW1lRXhjZXB0aW9uKAogICAgICAgICAgICAgICAgJHJlc3BvbnNlLT5qc29uKCdlcnJvcl9kZXNjcmlwdGlvbicpID8/ICRyZXNwb25zZS0+anNvbignbXNnJykgPz8gJ0ludmFsaWQgY3JlZGVudGlhbHMuJwogICAgICAgICAgICApOwogICAgICAgIH0KCiAgICAgICAgcmV0dXJuICRyZXNwb25zZS0+anNvbigpOwogICAgfQoKICAgIC8qKgogICAgICogUE9TVCAvYXV0aC92MS9sb2dvdXQg4oCUIGJlc3QtZWZmb3J0IHNlcnZlci1zaWRlIHJldm9jYXRpb24gb2YgdGhlCiAgICAgKiBTdXBhYmFzZSBzZXNzaW9uLiBGYWlsdXJlcyBoZXJlIG11c3QgbmV2ZXIgYmxvY2sgbG9jYWwgbG9nb3V0CiAgICAgKiAodGhlIExhcmF2ZWwgc2Vzc2lvbiBpcyB0aGUgcHJpbWFyeSB0aGluZyBiZWluZyBjbGVhcmVkKSwgc28KICAgICAqIGNhbGxlcnMgc2hvdWxkIHRyZWF0IHRoaXMgYXMgZmlyZS1hbmQtZm9yZ2V0LgogICAgICovCiAgICBwdWJsaWMgZnVuY3Rpb24gc2lnbk91dChzdHJpbmcgJGFjY2Vzc1Rva2VuKTogdm9pZAogICAgewogICAgICAgIEh0dHA6OndpdGhUb2tlbigkYWNjZXNzVG9rZW4pCiAgICAgICAgICAgIC0+d2l0aEhlYWRlcnMoWydhcGlrZXknID0+ICR0aGlzLT5hbm9uS2V5KCldKQogICAgICAgICAgICAtPnBvc3QoJHRoaXMtPmJhc2VVcmwoKS4nL2F1dGgvdjEvbG9nb3V0Jyk7CiAgICB9CgogICAgLyoqCiAgICAgKiBWZXJpZmllcyBhIFN1cGFiYXNlLWlzc3VlZCBhY2Nlc3MgdG9rZW46IHNpZ25hdHVyZSAodmlhIHRoZQogICAgICogcHJvamVjdCdzIHB1YmxpYyBKV0tTIOKAlCBFUzI1NiksIGV4cGlyeSwgYXVkaWVuY2UsIGFuZCBpc3N1ZXIuCiAgICAgKiBUaHJvd3Mgb24gYW55IGZhaWx1cmUg4oCUIGNhbGxlcnMgbXVzdCBub3QgdHJlYXQgYW4gZXhjZXB0aW9uIGFzCiAgICAgKiAibG9nZ2VkIG91dCBncmFjZWZ1bGx5IiwgaXQgbWVhbnMgdGhlIHRva2VuIG11c3Qgbm90IGJlIHRydXN0ZWQuCiAgICAgKgogICAgICogQHJldHVybiBhcnJheTxzdHJpbmcsbWl4ZWQ+IGRlY29kZWQgY2xhaW1zCiAgICAgKi8KICAgIHB1YmxpYyBmdW5jdGlvbiB2ZXJpZnlBY2Nlc3NUb2tlbihzdHJpbmcgJHRva2VuKTogYXJyYXkKICAgIHsKICAgICAgICB0cnkgewogICAgICAgICAgICAkZGVjb2RlZCA9IEpXVDo6ZGVjb2RlKCR0b2tlbiwgJHRoaXMtPmp3a3MoKSk7CiAgICAgICAgfSBjYXRjaCAoRXhwaXJlZEV4Y2VwdGlvbiAkZSkgewogICAgICAgICAgICB0aHJvdyBuZXcgUnVudGltZUV4Y2VwdGlvbignU2Vzc2lvbiB0b2tlbiBoYXMgZXhwaXJlZC4nLCBwcmV2aW91czogJGUpOwogICAgICAgIH0gY2F0Y2ggKFNpZ25hdHVyZUludmFsaWRFeGNlcHRpb24gJGUpIHsKICAgICAgICAgICAgdGhyb3cgbmV3IFJ1bnRpbWVFeGNlcHRpb24oJ1Nlc3Npb24gdG9rZW4gc2lnbmF0dXJlIGlzIGludmFsaWQuJywgcHJldmlvdXM6ICRlKTsKICAgICAgICB9IGNhdGNoIChVbmV4cGVjdGVkVmFsdWVFeGNlcHRpb24gJGUpIHsKICAgICAgICAgICAgdGhyb3cgbmV3IFJ1bnRpbWVFeGNlcHRpb24oJ1Nlc3Npb24gdG9rZW4gaXMgbWFsZm9ybWVkLicsIHByZXZpb3VzOiAkZSk7CiAgICAgICAgfQoKICAgICAgICAkY2xhaW1zID0gKGFycmF5KSAkZGVjb2RlZDsKCiAgICAgICAgaWYgKCgkY2xhaW1zWydhdWQnXSA/PyBudWxsKSAhPT0gJ2F1dGhlbnRpY2F0ZWQnKSB7CiAgICAgICAgICAgIHRocm93IG5ldyBSdW50aW1lRXhjZXB0aW9uKCdTZXNzaW9uIHRva2VuIGhhcyBhbiB1bmV4cGVjdGVkIGF1ZGllbmNlLicpOwogICAgICAgIH0KCiAgICAgICAgJGV4cGVjdGVkSXNzdWVyID0gJHRoaXMtPmJhc2VVcmwoKS4nL2F1dGgvdjEnOwogICAgICAgIGlmICgoJGNsYWltc1snaXNzJ10gPz8gbnVsbCkgIT09ICRleHBlY3RlZElzc3VlcikgewogICAgICAgICAgICB0aHJvdyBuZXcgUnVudGltZUV4Y2VwdGlvbignU2Vzc2lvbiB0b2tlbiBoYXMgYW4gdW5leHBlY3RlZCBpc3N1ZXIuJyk7CiAgICAgICAgfQoKICAgICAgICBpZiAoZW1wdHkoJGNsYWltc1snc3ViJ10pKSB7CiAgICAgICAgICAgIHRocm93IG5ldyBSdW50aW1lRXhjZXB0aW9uKCdTZXNzaW9uIHRva2VuIGlzIG1pc3NpbmcgYSBzdWJqZWN0IGNsYWltLicpOwogICAgICAgIH0KCiAgICAgICAgcmV0dXJuICRjbGFpbXM7CiAgICB9CgogICAgLyoqCiAgICAgKiBHRVQgL3Jlc3QvdjEvdXNlcnM/aWQ9ZXEuPHVpZD4gdXNpbmcgdGhlIFVTRVIncyBPV04gYWNjZXNzIHRva2VuCiAgICAgKiAobmV2ZXIgc2VydmljZV9yb2xlKSDigJQgUkxTJ3MgYHVzZXJzX3NlbGVjdF9vd25gIHBvbGljeSBpcyB3aGF0CiAgICAgKiBtYWtlcyB0aGlzIHJldHVybiBleGFjdGx5IG9uZSByb3cgKHRoZWlyIG93bikgb3Igbm9uZS4KICAgICAqCiAgICAgKiBAcmV0dXJuIGFycmF5PHN0cmluZyxtaXhlZD58bnVsbAogICAgICovCiAgICBwdWJsaWMgZnVuY3Rpb24gZmV0Y2hPd25Qcm9maWxlKHN0cmluZyAkYWNjZXNzVG9rZW4sIHN0cmluZyAkdXNlcklkKTogP2FycmF5CiAgICB7CiAgICAgICAgJHJlc3BvbnNlID0gSHR0cDo6d2l0aFRva2VuKCRhY2Nlc3NUb2tlbikKICAgICAgICAgICAgLT53aXRoSGVhZGVycyhbJ2FwaWtleScgPT4gJHRoaXMtPmFub25LZXkoKV0pCiAgICAgICAgICAgIC0+YWNjZXB0SnNvbigpCiAgICAgICAgICAgIC0+Z2V0KCR0aGlzLT5iYXNlVXJsKCkuJy9yZXN0L3YxL3VzZXJzJywgWwogICAgICAgICAgICAgICAgJ2lkJyA9PiAnZXEuJy4kdXNlcklkLAogICAgICAgICAgICAgICAgJ3NlbGVjdCcgPT4gJyonLAogICAgICAgICAgICBdKTsKCiAgICAgICAgaWYgKCRyZXNwb25zZS0+ZmFpbGVkKCkpIHsKICAgICAgICAgICAgdGhyb3cgbmV3IFJ1bnRpbWVFeGNlcHRpb24oJ0NvdWxkIG5vdCBsb2FkIHRoZSBhY2NvdW50IHByb2ZpbGUuJyk7CiAgICAgICAgfQoKICAgICAgICAkcm93cyA9ICRyZXNwb25zZS0+anNvbigpOwoKICAgICAgICByZXR1cm4gJHJvd3NbMF0gPz8gbnVsbDsKICAgIH0KfQo=
+<?php
+
+namespace App\Services;
+
+use Firebase\JWT\ExpiredException;
+use Firebase\JWT\JWK;
+use Firebase\JWT\JWT;
+use Firebase\JWT\SignatureInvalidException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use RuntimeException;
+use UnexpectedValueException;
+
+/**
+ * Thin wrapper around Supabase Auth (GoTrue) + PostgREST, used only with
+ * the anon key and (after login) the end user's own access token — never
+ * service_role. This is the Option B integration point approved for
+ * MediConnect India: Laravel never talks to Postgres directly for
+ * authenticated reads, it goes through Supabase so RLS evaluates
+ * auth.uid() natively.
+ */
+class SupabaseAuthService
+{
+    private function baseUrl(): string
+    {
+        $url = config('services.supabase.url');
+
+        if (! $url) {
+            throw new RuntimeException('SUPABASE_URL is not configured.');
+        }
+
+        return rtrim($url, '/');
+    }
+
+    private function anonKey(): string
+    {
+        $key = config('services.supabase.anon_key');
+
+        if (! $key) {
+            throw new RuntimeException('SUPABASE_ANON_KEY is not configured.');
+        }
+
+        return $key;
+    }
+
+    /**
+     * Fetches (and briefly caches) the project's public JWKS. Supabase
+     * projects now sign access tokens with an asymmetric key (ES256) by
+     * default — verification must use the matching public key looked up
+     * by `kid`, not a static shared secret.
+     *
+     * @return array<string,\Firebase\JWT\Key>
+     */
+    private function jwks(): array
+    {
+        $jwksJson = Cache::remember('supabase.jwks', now()->addHours(6), function () {
+            $response = Http::acceptJson()->get($this->baseUrl().'/auth/v1/.well-known/jwks.json');
+
+            if ($response->failed()) {
+                throw new RuntimeException('Could not fetch Supabase JWKS.');
+            }
+
+            return $response->json();
+        });
+
+        return JWK::parseKeySet($jwksJson);
+    }
+
+    /**
+     * POST /auth/v1/signup — creates the auth.users row. The already
+     * verified `on_auth_user_created` trigger provisions the matching
+     * public.users row server-side; nothing else is created here.
+     *
+     * `full_name` is passed as user metadata so the trigger's
+     * `raw_user_meta_data ->> 'full_name'` branch picks it up directly,
+     * instead of falling back to a derived name.
+     *
+     * Returns the raw decoded JSON. Depending on the project's Auth
+     * settings (email confirmation on/off — not something this app can
+     * see or assume), the response may or may not include a session.
+     * Callers must handle both cases; this method does not guess.
+     */
+    public function signUp(string $email, ?string $phone, string $password, string $fullName): array
+    {
+        $payload = array_filter([
+            'email' => $email ?: null,
+            'phone' => $phone ?: null,
+            'password' => $password,
+            'data' => ['full_name' => $fullName],
+        ], fn ($value) => $value !== null);
+
+        $response = Http::withHeaders(['apikey' => $this->anonKey()])
+            ->acceptJson()
+            ->post($this->baseUrl().'/auth/v1/signup', $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                $response->json('error_description') ?? $response->json('msg') ?? 'Registration failed.'
+            );
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * POST /auth/v1/token?grant_type=password
+     */
+    public function signInWithPassword(string $email, string $password): array
+    {
+        $response = Http::withHeaders(['apikey' => $this->anonKey()])
+            ->acceptJson()
+            ->post($this->baseUrl().'/auth/v1/token?grant_type=password', [
+                'email' => $email,
+                'password' => $password,
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException(
+                $response->json('error_description') ?? $response->json('msg') ?? 'Invalid credentials.'
+            );
+        }
+
+        return $response->json();
+    }
+
+    /**
+     * POST /auth/v1/logout — best-effort server-side revocation of the
+     * Supabase session. Failures here must never block local logout
+     * (the Laravel session is the primary thing being cleared), so
+     * callers should treat this as fire-and-forget.
+     */
+    public function signOut(string $accessToken): void
+    {
+        Http::withToken($accessToken)
+            ->withHeaders(['apikey' => $this->anonKey()])
+            ->post($this->baseUrl().'/auth/v1/logout');
+    }
+
+    /**
+     * Verifies a Supabase-issued access token: signature (via the
+     * project's public JWKS — ES256), expiry, audience, and issuer.
+     * Throws on any failure — callers must not treat an exception as
+     * "logged out gracefully", it means the token must not be trusted.
+     *
+     * @return array<string,mixed> decoded claims
+     */
+    public function verifyAccessToken(string $token): array
+    {
+        try {
+            $decoded = JWT::decode($token, $this->jwks());
+        } catch (ExpiredException $e) {
+            throw new RuntimeException('Session token has expired.', previous: $e);
+        } catch (SignatureInvalidException $e) {
+            throw new RuntimeException('Session token signature is invalid.', previous: $e);
+        } catch (UnexpectedValueException $e) {
+            throw new RuntimeException('Session token is malformed.', previous: $e);
+        }
+
+        $claims = (array) $decoded;
+
+        if (($claims['aud'] ?? null) !== 'authenticated') {
+            throw new RuntimeException('Session token has an unexpected audience.');
+        }
+
+        $expectedIssuer = $this->baseUrl().'/auth/v1';
+        if (($claims['iss'] ?? null) !== $expectedIssuer) {
+            throw new RuntimeException('Session token has an unexpected issuer.');
+        }
+
+        if (empty($claims['sub'])) {
+            throw new RuntimeException('Session token is missing a subject claim.');
+        }
+
+        return $claims;
+    }
+
+    /**
+     * GET /rest/v1/users?id=eq.<uid> using the USER's OWN access token
+     * (never service_role) — RLS's `users_select_own` policy is what
+     * makes this return exactly one row (their own) or none.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function fetchOwnProfile(string $accessToken, string $userId): ?array
+    {
+        $response = Http::withToken($accessToken)
+            ->withHeaders(['apikey' => $this->anonKey()])
+            ->acceptJson()
+            ->get($this->baseUrl().'/rest/v1/users', [
+                'id' => 'eq.'.$userId,
+                'select' => '*',
+            ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Could not load the account profile.');
+        }
+
+        $rows = $response->json();
+
+        return $rows[0] ?? null;
+    }
+}
