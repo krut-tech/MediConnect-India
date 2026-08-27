@@ -1,12 +1,12 @@
-<?php
+&lt;?php
 
 use Illuminate\Support\Str;
 
 return [
 
-    'default' => env('DB_CONNECTION', 'pgsql'),
+    'default' =&gt; env('DB_CONNECTION', 'pgsql'),
 
-    'connections' => [
+    'connections' =&gt; [
 
         /*
         |----------------------------------------------------------------
@@ -42,55 +42,67 @@ return [
         | work" — that would bypass RLS platform-wide and is exactly the
         | kind of change this project requires explicit approval for.
         |
+        | Phase 5 Step 2 note: this connection now goes through Supabase's
+        | Transaction Pooler (PgBouncer, transaction mode, port 6543) via a
+        | dedicated non-superuser role (`mediconnect_app`). Transaction-mode
+        | pooling does not support server-side prepared statements shared
+        | across pooled connections, so `options` below forces PDO to
+        | emulate prepares client-side. This is an infra-compatibility
+        | setting only — it does not change, weaken, or bypass RLS, and the
+        | Option A/B decision above is still open.
+        |
         */
-        'pgsql' => [
-            'driver' => 'pgsql',
-            'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'postgres'),
-            'username' => env('DB_USERNAME', ''),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => 'utf8',
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => env('DB_SSLMODE', 'require'),
+        'pgsql' =&gt; [
+            'driver' =&gt; 'pgsql',
+            'url' =&gt; env('DATABASE_URL'),
+            'host' =&gt; env('DB_HOST', '127.0.0.1'),
+            'port' =&gt; env('DB_PORT', '5432'),
+            'database' =&gt; env('DB_DATABASE', 'postgres'),
+            'username' =&gt; env('DB_USERNAME', ''),
+            'password' =&gt; env('DB_PASSWORD', ''),
+            'charset' =&gt; 'utf8',
+            'prefix' =&gt; '',
+            'prefix_indexes' =&gt; true,
+            'search_path' =&gt; 'public',
+            'sslmode' =&gt; env('DB_SSLMODE', 'require'),
+            'options' =&gt; [
+                \PDO::ATTR_EMULATE_PREPARES =&gt; true,
+            ],
         ],
 
         // Local-only fallback for running framework-level checks (routing,
         // Blade rendering, artisan commands) without ever touching the real
         // Supabase database. Never used in staging/production.
-        'sqlite_testing' => [
-            'driver' => 'sqlite',
-            'database' => env('DB_TESTING_DATABASE', database_path('testing.sqlite')),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
+        'sqlite_testing' =&gt; [
+            'driver' =&gt; 'sqlite',
+            'database' =&gt; env('DB_TESTING_DATABASE', database_path('testing.sqlite')),
+            'prefix' =&gt; '',
+            'foreign_key_constraints' =&gt; true,
         ],
 
     ],
 
-    'migrations' => [
-        'table' => 'migrations',
-        'update_date_on_publish' => true,
+    'migrations' =&gt; [
+        'table' =&gt; 'migrations',
+        'update_date_on_publish' =&gt; true,
     ],
 
-    'redis' => [
+    'redis' =&gt; [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'client' =&gt; env('REDIS_CLIENT', 'phpredis'),
 
-        'options' => [
-            'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => Str::slug(env('APP_NAME', 'mediconnect'), '_').'_database_',
+        'options' =&gt; [
+            'cluster' =&gt; env('REDIS_CLUSTER', 'redis'),
+            'prefix' =&gt; Str::slug(env('APP_NAME', 'mediconnect'), '_').'_database_',
         ],
 
-        'default' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_DB', '0'),
+        'default' =&gt; [
+            'url' =&gt; env('REDIS_URL'),
+            'host' =&gt; env('REDIS_HOST', '127.0.0.1'),
+            'username' =&gt; env('REDIS_USERNAME'),
+            'password' =&gt; env('REDIS_PASSWORD'),
+            'port' =&gt; env('REDIS_PORT', '6379'),
+            'database' =&gt; env('REDIS_DB', '0'),
         ],
 
     ],
