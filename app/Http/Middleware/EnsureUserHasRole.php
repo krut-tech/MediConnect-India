@@ -36,8 +36,17 @@ use Symfony\Component\HttpFoundation\Response;
  * already enforces at the database layer — it exists so route
  * definitions can express intent in application code too.
  *
- * Must run after `supabase.auth` (which populates the guard). Fails
- * closed (403) if no user is resolved, rather than assuming one.
+ * Must run after `supabase.auth` (which populates the guard) AND after
+ * `supabase.rls` (Phase 5 Step 3 —
+ * App\Http\Middleware\EstablishSupabaseRlsContext), since the
+ * `staff_assignments` query below is itself RLS-protected — see
+ * routes/web.php for the required ordering. Before Phase 5 Step 3, this
+ * query ran with no auth.uid() context at all and could only ever
+ * resolve zero rows for a live RLS policy that checks auth.uid(); that
+ * was the actual root cause of every real user being rejected here, not
+ * a legitimate "no staff role" outcome.
+ *
+ * Fails closed (403) if no user is resolved, rather than assuming one.
  */
 class EnsureUserHasRole
 {
