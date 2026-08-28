@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\PostgresTextArrayCast;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Model;
@@ -39,6 +40,17 @@ use Illuminate\Database\Eloquent\Model;
  * never assume success just because Eloquent's save()/update() returned
  * true — that return value does not reflect whether RLS actually
  * matched any rows.
+ *
+ * ============================================================
+ * known_allergies CAST (Phase 5.1 production-bug fix, 2026-08-28)
+ * ============================================================
+ * `known_allergies` is a native PostgreSQL `text[]` column (confirmed
+ * live via information_schema.columns: udt_name `_text`) — NOT jsonb,
+ * unlike `emergency_contact`. The generic 'array' cast always
+ * json_encode()/json_decode()s, which produced a hard production
+ * failure (SQLSTATE[22P02] malformed array literal) the moment a write
+ * to this column was attempted, because Postgres's array_in() parser
+ * rejects JSON's `[...]` syntax. See App\Casts\PostgresTextArrayCast.
  */
 class Patient extends Model
 {
@@ -66,7 +78,7 @@ class Patient extends Model
         return [
             'date_of_birth' => 'date',
             'emergency_contact' => 'array',
-            'known_allergies' => 'array',
+            'known_allergies' => PostgresTextArrayCast::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
