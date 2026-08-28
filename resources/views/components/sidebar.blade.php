@@ -4,6 +4,14 @@
     Static placeholder nav items for Phase 2. Real, role-aware navigation
     (driven by roles/role_permissions data) is a later-phase concern —
     this only proves the layout shell renders correctly.
+
+    Phase 5.1 exception: the "Patients" link below is now conditionally
+    shown based on Auth::user()->hasActiveStaffAssignment() (same
+    active-assignment definition EnsureUserHasRole uses for /patients
+    itself), because a plain patient account otherwise saw a nav item
+    that always 403'd — misleading UX, not a change to authorization.
+    Dashboard/Facilities remain unconditional, matching their routes
+    (open to any authenticated user, no 'role' middleware).
 --}}
 <aside {{ $attributes->merge(['class' => 'w-64 shrink-0 flex-col border-r border-surface-muted bg-white ' . $class]) }}>
     <div class="flex items-center gap-2 px-5 py-4 border-b border-surface-muted">
@@ -20,8 +28,10 @@
         <x-sidebar-link href="{{ route('facilities.index') }}" :active="request()->routeIs('facilities.*')">
             Facilities
         </x-sidebar-link>
-        <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
-            Patients
-        </x-sidebar-link>
+        @if (auth()->user()?->hasActiveStaffAssignment())
+            <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
+                Patients
+            </x-sidebar-link>
+        @endif
     </nav>
 </aside>
