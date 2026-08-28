@@ -1,3 +1,4 @@
+
 <x-layouts.authenticated title="Patients">
     <x-slot name="header">
         <x-breadcrumb :items="[
@@ -44,7 +45,9 @@
                         <tr>
                             <td class="flex items-center gap-3 font-medium text-ink">
                                 <x-avatar :name="$patient->user?->full_name ?? 'Patient'" size="sm" />
-                                {{ $patient->user?->full_name ?? 'Unnamed' }}
+                                <a href="{{ route('patients.show', $patient) }}" class="hover:text-primary-600 hover:underline">
+                                    {{ $patient->user?->full_name ?? 'Unnamed' }}
+                                </a>
                             </td>
                             <td class="text-ink-muted">{{ $patient->mrn ?? '—' }}</td>
                             <td class="text-ink-muted">{{ $patient->gender ?? '—' }}</td>
@@ -62,7 +65,11 @@
                     <div class="flex items-center gap-3">
                         <x-avatar :name="$patient->user?->full_name ?? 'Patient'" />
                         <div class="min-w-0">
-                            <p class="font-medium text-ink truncate">{{ $patient->user?->full_name ?? 'Unnamed' }}</p>
+                            <p class="font-medium text-ink truncate">
+                                <a href="{{ route('patients.show', $patient) }}" class="hover:text-primary-600 hover:underline">
+                                    {{ $patient->user?->full_name ?? 'Unnamed' }}
+                                </a>
+                            </p>
                             <p class="mt-0.5 text-sm text-ink-subtle">
                                 MRN {{ $patient->mrn ?? '—' }} · {{ $patient->gender ?? '—' }}
                             </p>
