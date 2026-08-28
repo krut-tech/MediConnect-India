@@ -54,6 +54,17 @@ class User extends Authenticatable
     }
 
     /**
+     * Phase 5.2 — additive only. Mirrors patient() above. A row here
+     * is optional (self-service doctor_profiles, see DoctorProfile's
+     * own docblock) — a null result is expected and normal for any
+     * user who hasn't created one, not an error condition.
+     */
+    public function doctorProfile()
+    {
+        return $this->hasOne(DoctorProfile::class, 'user_id');
+    }
+
+    /**
      * Phase 5.1 — nav-visibility helper only.
      *
      * Deliberately the SAME "active assignment" definition
