@@ -1,13 +1,54 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 5 Step 3 (Supabase JWT → PostgreSQL RLS context) — COMPLETE. Phase 4 (role authorization) remains as documented below, unchanged. Staff invitation and patient-profile creation are still separate, not-yet-approved next steps.
+**Current phase:** Phase 5.2 (Doctor module — directory, detail, self-service profile) — COMPLETE. Phase 5.1 (Patient module — detail, my-profile, limited update) — COMPLETE (was already fully implemented in commits `2ea3c38`..`4f900bf`, 2026-08-27/28; this file's "Current phase" line had not been updated to reflect that until now — see this section's own note below). Phase 5 Step 3 (RLS context) remains COMPLETE and unchanged.
+
+## Phase 5.2 — Doctor Module
+
+### Note on this file being found stale at the start of this session
+Before any Phase 5.2 code was written, the repository's actual state was audited (git log + routes/web.php + live Supabase schema/RLS), per the standing instruction to treat GitHub main as source of truth. That audit found Phase 5.1 (Patient detail, "My Profile", limited update — routes `/patients/{patient}`, `/my-profile`) was already fully built and live, documented in `routes/web.php`'s own header comment and in 15 commits (`2ea3c38` through `4f900bf`), including a same-day production bug already found and fixed (`52b00dc`, `known_allergies` array-cast mismatch). This file's "Current phase" line, however, still read "Phase 5 Step 3... Staff invitation and patient-profile creation are still separate, not-yet-approved next steps" — i.e. it had not been updated since Phase 5 Step 3, the same gap this file's own history already flagged once before (commit `2ba67b8`, re: Phase 4 vs. Step 3). Corrected as part of this phase rather than carried forward silently.
+
+### What was built
+- **`App\Models\DoctorProfile`** — new model for the existing `public.doctor_profiles` table (columns verified live via `information_schema.columns`: `id`, `user_id`, `qualifications` `text[]`, `specialties` `text[]`, `years_experience` `smallint`, `languages_spoken` `text[]`, `registration_number`, timestamps, `deleted_at`). Reuses the existing `App\Casts\PostgresTextArrayCast` (proven correct for `patients.known_allergies` in Phase 5.1's own production-bug fix) for all three `text[]` columns from the start, rather than repeating that bug.
+- **Live RLS audit** (`pg_policies`, read-only, no writes): `doctor_profiles_write_own` is a single `ALL`-command policy — `(user_id = auth.uid()) OR is_super_admin()` for both `USING` and `WITH CHECK` — meaning, unlike `patients`, a signed-in user genuinely **can** self-insert their own row; there is no INSERT-blocked Decision-W4-style situation here. `doctor_profiles_select_public` (`SELECT`, roles `anon`+`authenticated`, `deleted_at IS NULL`) makes the directory/detail screens genuinely public-safe, same tier as `facilities` per `DATABASE_MAPPING.md`. Confirmed live: 0 rows in `doctor_profiles` as of this session (expected — no self-service UI existed before this phase).
+- **`App\Http\Requests\UpdateDoctorProfileRequest`** — allow-listed fields only (`qualifications`, `specialties`, `years_experience`, `languages_spoken`, `registration_number`); `authorize()` always `true`, same rationale as `UpdatePatientRequest` (RLS is the sole authorization authority, not a second Laravel-side check). Comma-separated text inputs mapped to arrays for the three `text[]` columns.
+- **`App\Http\Controllers\DoctorController`** — `index()` (public directory, search by doctor name via `whereHas('user', ...)`), `show(DoctorProfile $doctor)` (public detail, **read-only** — deliberately no edit form, since no facility-staff/admin write path exists in RLS beyond `is_super_admin()`, unlike `PatientController::show()`), `myProfile()` (own profile if any; `null` is expected/normal, not a 404, since there is no automatic provisioning of this table the way `patients` gets one via the signup trigger), `updateMyProfile()` (create-or-update on the signed-in user's own row only — never reads a doctor/profile id from the request). Update path checks the actual affected-row count (RLS can silently match 0 rows on UPDATE); create path catches the real Postgres exception RLS raises on a rejected INSERT (`QueryException`, unlike UPDATE's silent no-op) rather than inferring success from a row count.
+- **3 new Blade views** (`resources/views/doctors/index.blade.php`, `show.blade.php`, `my-profile.blade.php`) — same responsive table/card pattern and design-system components as `patients/*`/`facilities/*`. `my-profile.blade.php` has two real states (no existing profile → create form; existing profile → info panel + pre-filled update form), not a placeholder — both post to the same `PATCH` route, with the controller deciding create-vs-update server-side.
+- **`routes/web.php`** — `/doctors`, `/doctors/{doctor}` added to the authenticated group, **no** `role` gate (public per RLS, same tier as `/facilities`). `/my-doctor-profile` (GET/PATCH) added alongside `/my-profile`, also no `role` gate (self-service, any authenticated user may publish a doctor profile; `doctor_profiles_write_own` RLS independently enforces "own record only").
+- **Sidebar + mobile-nav** updated in lockstep (kept in sync deliberately, per the pattern established in Phase 5.1's own nav-visibility commits): "Doctors" link unconditional (public directory); "My Doctor Profile" link shown under the same `User::hasActiveStaffAssignment()` condition already used for "Patients" — reused, not duplicated, and this is a UX-only visibility choice (only staff members are plausible candidates to publish a doctor profile), not a hardcoded role-code check and not a change to route authorization (`/my-doctor-profile` itself carries no `role` gate).
+- **`tests/Feature/DoctorModuleTest.php`** — 10 tests mirroring `PatientModuleTest.php`'s structure: unauthenticated redirects, `role`-middleware-absence assertions (directory/detail/my-profile all correctly ungated, unlike `/patients`), route-parameter structural guarantee, directory/my-profile rendering, create, update, and two `UpdateDoctorProfileRequest`-layer tests (protected-field exclusion, comma-list-to-array mapping) that need no DB and are the ones expected to actually pass once composer is unblocked.
+
+### Real mistake caught and fixed this session (documented, not hidden)
+`DoctorProfile.php`'s first push included an accidental leading blank line before the opening `<?php` tag — the exact same class of mistake commit `e62c58e` (this session's most recent prior commit, authored by you) had just fixed in `User.php`. Caught immediately by re-fetching and reviewing the raw pushed content (this phase's own working discipline: every file was re-fetched and read back after writing, not assumed correct from the write call's own echo), and corrected in an immediate follow-up commit before touching any other file.
+
+### Testing results (Phase 5.2)
+
+| Check | Result | Notes |
+|---|---|---|
+| Manual review of every new/changed file's raw pushed content (re-fetched via GitHub, not assumed) | **PASS** | All 11 changed/added files reviewed; the one real mistake above was caught this way and fixed |
+| `php -l` | **NOT RUN** | No callable PHP CLI in this session's sandbox — consistent with this repo's prior sessions' documented state, not re-verified fresh this session |
+| `composer install` / `php artisan test` | **BLOCKED / NOT RUN** | Same standing sandbox limitation as every prior phase (`repo.packagist.org` unreachable) — not re-attempted fresh this session; stated as consistent with prior documented state, not as a new confirmed check |
+| Manual secret scan | **PASS** | No credentials, tokens, or connection strings introduced in any file this phase touched |
+| Supabase security advisors (`get_advisors`, security) re-run before writing any code | **PASS** | Only pre-existing, non-blocking findings (empty future-month `audit_log` partitions, extensions-in-public hygiene, `SECURITY DEFINER` RPC-callable helper functions, leaked-password-protection toggle) — identical set to what Phase 5 Step 3 already documented; nothing new introduced by this phase's (read-only) Supabase access |
+| Live DB row counts / RLS policy text for `doctor_profiles`/`doctor_specialties` | **PASS** | Confirmed live via `pg_policies` and `information_schema.columns` before writing the model — zero writes attempted at any point this phase |
+| `npm install` / `vite build` | **NOT RUN** | Not attempted this session — no CSS/JS was added or changed (all new Blade files use only existing design-system component tags, no new Tailwind classes beyond ones already used elsewhere in this repo) |
+| GitHub Actions / CI | **N/A** | No CI configured for this repo |
+| Render deployment | **See chat report** | This file only covers what ran/was checked in the sandbox; live deployment + runtime log verification is reported separately, not duplicated here |
+| Production smoke test (real logged-in click-through) | **NOT DONE THIS SESSION** | Same standing limitation already documented for every prior phase — no browser tool reaches an authenticated Render session from this sandbox |
+
+**No runtime "PASS" is claimed for anything that wasn't actually executed or actually observed**, consistent with this file's existing convention.
+
+## Known gap carried forward (unchanged by this phase)
+- `doctor_specialties` (pivot table linking `doctor_user_id` to the `specialties` catalog via `specialty_id`) was **not** wired this phase — it's a genuinely separate, catalog-linked concept from `doctor_profiles.specialties` (this table's own free-text array column), flagged rather than silently folded in.
+- The DB-level RLS contract test gap (two different UUIDs, asserted under real Postgres RLS) flagged since Phase 5 Step 3 remains unresolved and out of scope here, same as it was for Phase 5.1.
+
+---
 
 ## Phase 5 Step 3 — RLS context / JWT propagation
 
 ### What was built
 - **`App\Services\SupabaseRlsContext`** — reads already-verified JWT claims cached at login (`supabase.jwt_claims`, added to the session in `AuthController::establishSession()`), never decodes/verifies a JWT itself. `run()` wraps a callback in `DB::transaction()` and issues `SET LOCAL ROLE authenticated` plus transaction-local `set_config('request.jwt.claims', ...)` / `request.jwt.claim.sub` / `request.jwt.claim.role`. Fails closed (throws) if no verified `sub` claim is present, before any DB connection is touched.
 - **`App\Http\Middleware\EstablishSupabaseRlsContext`** (alias `supabase.rls`) — reads claims via `claimsFromSession()`, aborts 403 if none, otherwise wraps the rest of the request (including `role`/`EnsureUserHasRole` and every controller in the group) in the RLS context.
-- **`routes/web.php`** — `supabase.rls` placed immediately after `supabase.auth` and before `role`, applied to the whole authenticated group (`/logout`, `/dashboard`, `/facilities`, `/facilities/{facility}`, `/patients`). This is what makes `role`'s own `staff_assignments` query, and `PatientController`/`FacilityController`'s staff-assignment relations, resolve correctly instead of silently seeing zero rows under RLS.
+- **`routes/web.php`** — `supabase.rls` placed immediately after `supabase.auth` and before `role`, applied to the whole authenticated group (`/logout`, `/dashboard`, `/facilities`, `/patients`). This is what makes `role`'s own `staff_assignments` query, and `PatientController`/`FacilityController`'s staff-assignment relations, resolve correctly instead of silently seeing zero rows under RLS.
 - **`AuthController::establishSession()`** — now also caches the verified `sub`/`role`/`aud`/`iss`/`exp` subset of `SupabaseAuthService::verifyAccessToken()`'s output under `supabase.jwt_claims`; cleared on logout, same as `supabase.profile`.
 - **`PatientController`/`FacilityController`/`EnsureUserHasRole`** — docblocks added documenting that their RLS-protected queries depend on `supabase.rls` running first; no query logic changed (the security boundary is the middleware-established transaction context, not a manually bolted-on `WHERE` clause, per the explicit instruction not to fake it that way).
 - **`tests/Feature/AuthTest.php`** — updated so tests that seed a session directly (bypassing real login) to reach `/dashboard` or `/logout` also seed `supabase.jwt_claims`, since those routes now sit behind `supabase.rls` too.
@@ -200,8 +241,9 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 ## Known gaps / open decisions requiring your input
 
 1. **Supabase connection architecture** (flagged in `config/database.php`): direct Postgres connection with per-request session GUCs to satisfy RLS, vs. going through PostgREST/RPC per request. **Resolved in Phase 5 Steps 1–3**: Option A (direct connection, dedicated `mediconnect_app` role, Transaction Pooler, per-transaction `SET LOCAL` RLS context) — see Phase 5 Step 3 section above.
-2. **`patients` write path**: the Edge Function/RPC referenced in the schema's own comments doesn't exist yet (`list_edge_functions` returned empty). Needs clarification/building before the Patient module starts.
-3. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel/Render connectors) — if any code or wireframes exist only on your machine, worth sharing before further phases.
+2. **`patients` write path**: the write path (Decision W4) remains genuinely blocked at the database (zero INSERT policies, zero deployed Edge Functions, re-confirmed live during the Phase 5.1 audit) — registration is still not possible; UPDATE was resolved in Phase 5.1 for the two cases RLS actually supports (own record, assigned doctor).
+3. **`doctor_specialties`** (catalog-linked pivot) not wired — flagged as a Phase 5.2 known gap above.
+4. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel/Render connectors) — if any code or wireframes exist only on your machine, worth sharing before further phases.
 
 ## Git
 
@@ -210,4 +252,4 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 
 ## Next task
 
-Phase 5 Step 3 is complete. Waiting for explicit approval before any further Phase 5 step or Phase 5.1 feature development, per the stop condition in the Step 3 instructions.
+Phase 5.2 (Doctor module) is complete. Waiting for explicit approval before starting the next Phase 4 core module (Facility/Hospital admin, Appointments, Clinical/EHR, Laboratory, Pharmacy, Billing, Notifications/Search, or Admin/Super Admin — per `LARAVEL_MIGRATION_PLAN.md`'s ordering) or any other further work, per the stop condition in this session's instructions.
