@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\FacilityController;
 use App\Http\Controllers\PatientController;
 use Illuminate\Support\Facades\Route;
@@ -36,7 +37,7 @@ use Illuminate\Support\Facades\Route;
 | (SET LOCAL ROLE authenticated + request.jwt.claims) derived from the
 | already-verified JWT claims cached at login. This is what makes
 | 'role' (which itself queries the RLS-protected staff_assignments
-| table) and Patient/Facility staff-assignment queries resolve
+| table) and Patient/Facility/Doctor staff-assignment queries resolve
 | correctly instead of silently seeing zero rows. It is placed
 | immediately after 'supabase.auth' and before 'role' so both the role
 | check and every controller in this group run under it.
@@ -44,11 +45,20 @@ use Illuminate\Support\Facades\Route;
 | Phase 5.1 adds /my-profile (patient-facing own profile — deliberately
 | NOT behind 'role', since a plain patient has no staff_assignments row
 | and would be 403'd by it) and /patients/{patient} (staff-facing detail
-| + limited update, inside the existing 'role' group). Neither adds any
-| new middleware or changes existing route behavior.
+| + limited update, inside the existing 'role' group).
 |
-| Doctor/Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain
-| out of scope for this phase.
+| Phase 5.2 adds /doctors, /doctors/{doctor} (public directory + detail,
+| open to any authenticated user — doctor_profiles_select_public RLS is
+| already public-safe, same tier as /facilities, no 'role' gate) and
+| /my-doctor-profile (self-service create/update of the signed-in user's
+| own doctor_profiles row — also no 'role' gate, mirroring /my-profile:
+| any authenticated user may publish a doctor profile, and
+| doctor_profiles_write_own RLS independently enforces "own record
+| only"). Neither adds any new middleware or changes existing route
+| behavior.
+|
+| Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain out of
+| scope for this phase.
 |
 */
 
@@ -70,6 +80,12 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     Route::get('/facilities', [FacilityController::class, 'index'])->name('facilities.index');
     Route::get('/facilities/{facility}', [FacilityController::class, 'show'])->name('facilities.show');
 
+    // Public doctor directory + detail (Phase 5.2). Non-PII beyond what
+    // a doctor chooses to publish, and already public per
+    // doctor_profiles_select_public RLS — same open tier as /facilities.
+    Route::get('/doctors', [DoctorController::class, 'index'])->name('doctors.index');
+    Route::get('/doctors/{doctor}', [DoctorController::class, 'show'])->name('doctors.show');
+
     // Patient's own profile. No 'role' gate — a plain patient account
     // has no staff_assignments row and would be incorrectly 403'd by
     // EnsureUserHasRole if this sat in the group below. Identity comes
@@ -79,6 +95,14 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     // independently enforce "own record only" regardless.
     Route::get('/my-profile', [PatientController::class, 'myProfile'])->name('patients.my-profile');
     Route::patch('/my-profile', [PatientController::class, 'updateMyProfile'])->name('patients.my-profile.update');
+
+    // Signed-in user's own doctor profile (Phase 5.2). No 'role' gate —
+    // same rationale as /my-profile above. DoctorController never
+    // accepts a doctor/profile id from the request/route, and
+    // doctor_profiles_write_own RLS independently enforces "own record
+    // only" for both the create and update paths.
+    Route::get('/my-doctor-profile', [DoctorController::class, 'myProfile'])->name('doctors.my-profile');
+    Route::patch('/my-doctor-profile', [DoctorController::class, 'updateMyProfile'])->name('doctors.my-profile.update');
 
     // Any authenticated staff member (any active staff_assignments row,
     // any role) — not open to plain patient-role accounts or
