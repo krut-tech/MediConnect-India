@@ -1,3 +1,4 @@
+
 <?php
 
 namespace App\Models;
@@ -51,5 +52,28 @@ class User extends Authenticatable
     public function patient()
     {
         return $this->hasOne(Patient::class, 'user_id');
+    }
+
+    /**
+     * Phase 5.1 — nav-visibility helper only.
+     *
+     * Deliberately the SAME "active assignment" definition
+     * App\Http\Middleware\EnsureUserHasRole uses (deleted_at is null,
+     * and valid_until is null or in the future) — this does not
+     * introduce a second, possibly-drifting notion of "has a role".
+     * It exists so Blade views (sidebar/mobile-nav) can decide whether
+     * to *show* a link without duplicating or replacing the actual
+     * authorization check, which remains solely EnsureUserHasRole +
+     * the live RLS policies. Hiding a link here has no bearing on
+     * whether the underlying route allows the request — it is UX only.
+     */
+    public function hasActiveStaffAssignment(): bool
+    {
+        return $this->staffAssignments()
+            ->whereNull('deleted_at')
+            ->where(function ($query) {
+                $query->whereNull('valid_until')->orWhere('valid_until', '>', now());
+            })
+            ->exists();
     }
 }
