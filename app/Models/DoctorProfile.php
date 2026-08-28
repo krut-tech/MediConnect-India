@@ -1,4 +1,3 @@
-
 <?php
 
 namespace App\Models;
@@ -11,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Maps to the existing public.doctor_profiles table (Phase 5.2).
  *
- * See this file's own commit message for the full write-path / RLS
+ * See the model-addition commit message for the full write-path / RLS
  * audit. Summary: unlike `patients`, this table's RLS (`doctor_profiles_
  * write_own`) permits a signed-in user to INSERT/UPDATE/DELETE their own
  * row (`user_id = auth.uid()`), or a super admin any row. Publicly
