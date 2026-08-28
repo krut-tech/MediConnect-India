@@ -28,6 +28,11 @@
             for plain patient accounts (no active staff_assignments row)
             via the same User::hasActiveStaffAssignment() helper, so
             this panel can't fall out of sync with the desktop sidebar.
+
+            Phase 5.2: "Doctors" unconditional (public directory, same
+            tier as Facilities); "My Doctor Profile" under the same
+            hasActiveStaffAssignment() condition as "Patients" — see
+            sidebar.blade.php's docblock for the full rationale.
         --}}
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
@@ -36,9 +41,15 @@
             <x-sidebar-link href="{{ route('facilities.index') }}" :active="request()->routeIs('facilities.*')">
                 Facilities
             </x-sidebar-link>
+            <x-sidebar-link href="{{ route('doctors.index') }}" :active="request()->routeIs('doctors.index') || request()->routeIs('doctors.show')">
+                Doctors
+            </x-sidebar-link>
             @if (auth()->user()?->hasActiveStaffAssignment())
                 <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
                     Patients
+                </x-sidebar-link>
+                <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
+                    My Doctor Profile
                 </x-sidebar-link>
             @endif
         </nav>
