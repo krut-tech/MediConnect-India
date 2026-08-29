@@ -1,8 +1,32 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 5.2 (Doctor module — directory, detail, self-service profile) — **COMPLETE, PRODUCTION VERIFIED** (manual production verification 2026-08-29, latest Phase 5.2 commit `9f0fd71c4beb634349cf5433c9ea14107a63dfa1`; see "Production Verification" subsection below). Phase 5.1 (Patient module — detail, my-profile, limited update) — COMPLETE (was already fully implemented in commits `2ea3c38`..`4f900bf`, 2026-08-27/28; this file's "Current phase" line had not been updated to reflect that until now — see this section's own note below). Phase 5 Step 3 (RLS context) remains COMPLETE and unchanged. **Phase 6 — NOT STARTED.**
+**Current phase:** Phase 5.2 (Doctor module — directory, detail, self-service profile) — **COMPLETE, PRODUCTION VERIFIED** (manual production verification 2026-08-29, latest Phase 5.2 commit `9f0fd71c4beb634349cf5433c9ea14107a63dfa1`; see "Production Verification" subsection below). A post-verification production bug (logout 419) was found, diagnosed, and given a scoped UX fix same-day — see "Post-Verification Production Fix" below. Phase 5.1 (Patient module — detail, my-profile, limited update) — COMPLETE (was already fully implemented in commits `2ea3c38`..`4f900bf`, 2026-08-27/28; this file's "Current phase" line had not been updated to reflect that until now — see this section's own note below). Phase 5 Step 3 (RLS context) remains COMPLETE and unchanged. **Phase 6 — NOT STARTED.**
 
 ## Phase 5.2 — Doctor Module
+
+### Post-Verification Production Fix — Logout 419 (2026-08-29)
+
+**Symptom:** after the Production Verification pass below completed cleanly, a *later* click on "Sign out" (same browser session, same tab) returned Laravel's raw `419 | PAGE EXPIRED` page instead of logging out.
+
+**Root cause — confirmed from Render logs, not guessed.** Reconstructed the full request timeline by instance:
+- `5nhmt` (started 03:05:08): the entire verified flow ran here — login (03:05:36) through the final successful profile update (03:08:05..03:08:11). All PASS, matching the Production Verification section below.
+- `jrb8v` (started 03:14:56): triggered by the "Phase 5.2 COMPLETE" **docs commit** (`3689ee27`) auto-deploying — a real container replacement.
+- `tnls7` (started 04:34:20): **no deploy triggered this one** — confirmed via `list_deploys`, nothing was pushed between 03:14 and 05:09. This is Render's free-tier container spinning down after an idle period and spinning back up on the next inbound request (first hit: an OpenAI search-bot request at 04:34:40).
+- At 05:09:30, `"POST /logout HTTP/1.1" 419` landed on `tnls7`, referer `/my-doctor-profile` — the page that had been rendered on `5nhmt` over two hours earlier and left open/idle in the browser the whole time.
+
+Because `SESSION_DRIVER=file` with no persistent disk attached to the Render service, each container replacement (`5nhmt`→`jrb8v`→`tnls7`) starts with an empty `storage/framework/sessions`. The CSRF token embedded in that old, still-open `/my-doctor-profile` page belonged to a session that no longer existed on `tnls7` by the time "Sign out" was clicked — so `VerifyCsrfToken` correctly rejected it. This is the exact risk already flagged in the Phase 4 section below ("file-based sessions will not survive a Render restart... before that happens") — it happened, via the ordinary combination of a routine deploy, the free tier's own idle spin-down behavior, and a long-idle browser tab.
+
+**Explicitly ruled out, each independently re-verified correct:** the `/logout` route and its `supabase.auth`+`supabase.rls` middleware stack, `AuthController::logout()`, the navbar logout form's method/action/`@csrf`, `config/session.php`'s values, `bootstrap/app.php`'s `trustProxies(at: '*')`, and the APP_KEY fail-fast fix (commit `0f842f4b`, confirmed still working — the entire login-through-update sequence above succeeded end-to-end within `5nhmt`'s session, which the APP_KEY bug would not have permitted).
+
+**Fix applied (commit `5d271de`, `bootstrap/app.php` only):** registered a `TokenMismatchException` render handler in `withExceptions()` that redirects non-JSON requests to `/login` with a `session('status')` message ("Your session expired. Please sign in again.") instead of Laravel's raw 419 page. **CSRF verification itself is completely unchanged** — a mismatched token is still rejected exactly as before; this only changes what happens to the response *after* that rejection has already occurred. No `SESSION_DRIVER` change, no Redis, no persistent disk, no database/schema change, no Doctor/Patient/Facility code touched — all explicitly out of scope per instruction. **This does not prevent the underlying scenario from recurring** on a sufficiently long-idle tab spanning a deploy or a free-tier spin-down/up cycle; it only ensures the person lands on a normal "please sign in again" screen instead of a dead-end error page when it does.
+
+**Verification performed:**
+- Raw pushed content of `bootstrap/app.php` re-fetched from GitHub and reviewed — valid PHP, no encoding issues, no unrelated lines changed.
+- Render deploy for commit `5d271de` reached `live` (see chat report for deploy ID / timestamps).
+- Render runtime logs checked post-deploy for new errors — none.
+- **Not yet done:** a fresh real-user click-through of Login → Dashboard → Doctors → My Doctor Profile → Logout → Login again, specifically re-testing logout without an extended idle gap this time, and (separately, optionally) deliberately reproducing the long-idle-tab scenario to confirm the new redirect actually fires instead of the raw 419 page. Both require a real browser session outside this sandbox.
+
+**Left for a future, separately-scoped decision (not this fix):** the actual durability gap — `SESSION_DRIVER=file` with no persistent disk, so *any* container replacement drops in-flight sessions — remains unresolved. Closing it for real needs one of: a Render persistent disk (file driver kept), database-backed sessions (needs a new `sessions` table — schema change, requires approval), or Redis (needs a new paid Render service) — each explicitly deferred, not chosen here.
 
 ### Production Verification (2026-08-29)
 
@@ -29,6 +53,7 @@ Phase 5.2 was manually verified directly against production and is being recorde
 - **Not touched during this verification pass:** Patient, Facility, Auth, RLS/RBAC, and existing Doctor functionality — no code, migrations, or production configuration changes were made; this was a verification-and-documentation-only pass.
 - **Phase 6:** NOT STARTED. Not begun as part of, or as a follow-on to, this verification pass.
 
+**Note (added same day):** the logout 419 covered above was found in the minutes *after* this verification pass — it does not retroactively invalidate any of the 10 PASS items above (all still individually true and reproduced from logs), but it is the reason "no 419/500 error occurred anywhere in the complete flow" should be read as covering that specific click-through, not as a guarantee against every possible session-timing scenario.
 
 ### Note on this file being found stale at the start of this session
 Before any Phase 5.2 code was written, the repository's actual state was audited (git log + routes/web.php + live Supabase schema/RLS), per the standing instruction to treat GitHub main as source of truth. That audit found Phase 5.1 (Patient detail, "My Profile", limited update — routes `/patients/{patient}`, `/my-profile`) was already fully built and live, documented in `routes/web.php`'s own header comment and in 15 commits (`2ea3c38` through `4f900bf`), including a same-day production bug already found and fixed (`52b00dc`, `known_allergies` array-cast mismatch). This file's "Current phase" line, however, still read "Phase 5 Step 3... Staff invitation and patient-profile creation are still separate, not-yet-approved next steps" — i.e. it had not been updated since Phase 5 Step 3, the same gap this file's own history already flagged once before (commit `2ba67b8`, re: Phase 4 vs. Step 3). Corrected as part of this phase rather than carried forward silently.
@@ -59,13 +84,14 @@ Before any Phase 5.2 code was written, the repository's actual state was audited
 | `npm install` / `vite build` | **NOT RUN** | Not attempted this session — no CSS/JS was added or changed (all new Blade files use only existing design-system component tags, no new Tailwind classes beyond ones already used elsewhere in this repo) |
 | GitHub Actions / CI | **N/A** | No CI configured for this repo |
 | Render deployment | **See chat report** | This file only covers what ran/was checked in the sandbox; live deployment + runtime log verification is reported separately, not duplicated here |
-| Production smoke test (real logged-in click-through) | **NOT DONE THIS SESSION** | Same standing limitation already documented for every prior phase — no browser tool reaches an authenticated Render session from this sandbox |
+| Production smoke test (real logged-in click-through) | **DONE, separately** | See "Production Verification (2026-08-29)" above — performed outside the sandbox, by you, directly against production |
 
 **No runtime "PASS" is claimed for anything that wasn't actually executed or actually observed**, consistent with this file's existing convention.
 
 ## Known gap carried forward (unchanged by this phase)
 - `doctor_specialties` (pivot table linking `doctor_user_id` to the `specialties` catalog via `specialty_id`) was **not** wired this phase — it's a genuinely separate, catalog-linked concept from `doctor_profiles.specialties` (this table's own free-text array column), flagged rather than silently folded in.
 - The DB-level RLS contract test gap (two different UUIDs, asserted under real Postgres RLS) flagged since Phase 5 Step 3 remains unresolved and out of scope here, same as it was for Phase 5.1.
+- **Session-storage durability across container replacement** (`SESSION_DRIVER=file`, no persistent disk) — flagged since Phase 4, and directly responsible for the logout 419 above. Still unresolved; the fix above addresses only how the resulting error is displayed, not the underlying gap. See "Post-Verification Production Fix" above for the three deferred remediation options.
 
 ---
 
@@ -113,7 +139,7 @@ Before any Phase 5.2 code was written, the repository's actual state was audited
 - `tests/Feature/RoleAuthorizationTest.php` — 3 tests: unauthenticated redirect, authenticated-but-no-staff-assignment forbidden (403), and a control case confirming `/facilities` remains open (guards against someone widening the `role` group later by accident).
 
 ### Session-driver question (explicitly evaluated, not changed)
-`VerifySupabaseSession` only reads/writes Laravel's own session store (currently `SESSION_DRIVER=file`) — it doesn't touch the DB or Supabase per request. This is compatible with every Phase 4 acceptance item; nothing in Phase 4 requires session persistence across instances or restarts, and the app is currently deployed as a single Render service. Left unchanged, per the instruction not to make speculative changes. **Flagged, not fixed:** file-based sessions will not survive a Render restart/redeploy and won't work if this service is ever scaled to more than one instance — worth a deliberate decision (Redis, DB-backed sessions, or a Render persistent disk) before that happens, but it is not a Phase 4 blocker today.
+`VerifySupabaseSession` only reads/writes Laravel's own session store (currently `SESSION_DRIVER=file`) — it doesn't touch the DB or Supabase per request. This is compatible with every Phase 4 acceptance item; nothing in Phase 4 requires session persistence across instances or restarts, and the app is currently deployed as a single Render service. Left unchanged, per the instruction not to make speculative changes. **Flagged, not fixed:** file-based sessions will not survive a Render restart/redeploy and won't work if this service is ever scaled to more than one instance — worth a deliberate decision (Redis, DB-backed sessions, or a Render persistent disk) before that happens, but it is not a Phase 4 blocker today. **Update (Phase 5.2, 2026-08-29): this happened** — see "Post-Verification Production Fix — Logout 419" above.
 
 ### Testing results (Phase 4)
 
@@ -269,7 +295,8 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 1. **Supabase connection architecture** (flagged in `config/database.php`): direct Postgres connection with per-request session GUCs to satisfy RLS, vs. going through PostgREST/RPC per request. **Resolved in Phase 5 Steps 1–3**: Option A (direct connection, dedicated `mediconnect_app` role, Transaction Pooler, per-transaction `SET LOCAL` RLS context) — see Phase 5 Step 3 section above.
 2. **`patients` write path**: the write path (Decision W4) remains genuinely blocked at the database (zero INSERT policies, zero deployed Edge Functions, re-confirmed live during the Phase 5.1 audit) — registration is still not possible; UPDATE was resolved in Phase 5.1 for the two cases RLS actually supports (own record, assigned doctor).
 3. **`doctor_specialties`** (catalog-linked pivot) not wired — flagged as a Phase 5.2 known gap above.
-4. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel/Render connectors) — if any code or wireframes exist only on your machine, worth sharing before further phases.
+4. **Session-storage durability** across container replacement — flagged since Phase 4, now confirmed to actually occur in production (Phase 5.2 logout 419). Needs a deliberate choice: Render persistent disk, DB-backed sessions (schema change), or Redis.
+5. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel/Render connectors) — if any code or wireframes exist only on your machine, worth sharing before further phases.
 
 ## Git
 
@@ -278,4 +305,4 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 
 ## Next task
 
-Phase 5.2 (Doctor module) is complete and **production-verified** (see "Production Verification (2026-08-29)" above). **Phase 6 has NOT been started.** Waiting for explicit approval before starting Phase 6 or any other further work, per the stop condition in this session's instructions.
+Phase 5.2 (Doctor module) is complete and **production-verified** (see "Production Verification (2026-08-29)" above), with a same-day post-verification UX fix for the logout 419 (see "Post-Verification Production Fix" above) deployed and pending your fresh click-through confirmation. **Phase 6 has NOT been started.** Waiting for explicit approval before starting Phase 6 or any other further work, per the stop condition in this session's instructions.
