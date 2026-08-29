@@ -27,6 +27,7 @@
             <div class="mt-4 flex flex-wrap gap-3">
                 <x-button variant="secondary" href="{{ route('facilities.index') }}">View facilities</x-button>
                 <x-button variant="secondary" href="{{ route('patients.index') }}">View patients</x-button>
+                <x-button variant="secondary" href="{{ route('staff.my-profile') }}">My staff profile</x-button>
             </div>
             @break
 
@@ -42,8 +43,11 @@
                 <x-stat-card label="Registered patients" :value="$patientCount" hint="Registered via this facility" />
             </div>
 
-            <div class="mt-4">
+            <div class="mt-4 flex flex-wrap gap-3">
                 <x-button variant="secondary" href="{{ route('facilities.show', $facility) }}">View facility details</x-button>
+                <x-button variant="secondary" href="{{ route('staff.my-profile') }}">My staff profile</x-button>
+                <x-button variant="secondary" href="{{ route('staff.my-shifts') }}">My shifts</x-button>
+                <x-button variant="secondary" href="{{ route('staff.my-leave') }}">My leave</x-button>
             </div>
             @break
 
