@@ -63,4 +63,33 @@ class StaffAssignment extends Model
     {
         return $this->belongsTo(Role::class, 'role_id');
     }
+
+    /**
+     * Phase 6 — additive only. department_id is nullable on the live
+     * schema (verified via information_schema), so this relation may
+     * resolve null for an assignment with no department set — treat
+     * that as normal, not an error.
+     */
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    /**
+     * Phase 6 — additive only. See StaffShift's own docblock: this
+     * app only ever reads this relation, never writes through it.
+     */
+    public function shifts()
+    {
+        return $this->hasMany(StaffShift::class, 'staff_assignment_id');
+    }
+
+    /**
+     * Phase 6 — additive only. See StaffLeave's own docblock for the
+     * create/read-only boundary this app respects.
+     */
+    public function leaveRequests()
+    {
+        return $this->hasMany(StaffLeave::class, 'staff_assignment_id');
+    }
 }
