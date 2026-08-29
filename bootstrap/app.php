@@ -3,6 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
+use Illuminate\Session\TokenMismatchException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -32,5 +34,37 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Phase 5.2 post-verification fix (2026-08-29) — production
+        // evidence: a browser tab left open on an authenticated page for
+        // an extended period (here: ~2 hours) submitted a form whose
+        // embedded CSRF token no longer matched any current session,
+        // because the backing container had since been replaced (a real
+        // deploy, and separately a Render free-tier idle spin-down/
+        // spin-up — confirmed via Render logs: instance 5nhmt, where the
+        // page was rendered, was gone by the time of the request; the
+        // request landed on a later instance, tnls7, whose session store
+        // never had that session file). Root cause is session-storage
+        // durability across container replacement — NOT a defect in
+        // VerifyCsrfToken, the logout route, AuthController, or any
+        // Blade form (all independently verified correct; every @csrf
+        // token and route wiring is exactly as it should be). That
+        // durability gap is explicitly out of scope for this change
+        // (no SESSION_DRIVER change, no new infra, no schema).
         //
+        // This handler changes ONLY what happens to a browser (non-JSON)
+        // request AFTER VerifyCsrfToken has already correctly rejected a
+        // stale/mismatched token — replacing Laravel's raw, unbranded
+        // 419 "Page Expired" error page with a plain redirect back to
+        // /login and a human-readable status message. CSRF verification
+        // itself is completely untouched: a mismatched token is still
+        // rejected exactly as before; this only makes the resulting,
+        // already-rejected request land somewhere useful instead of a
+        // dead-end error page. Scoped to TokenMismatchException only —
+        // no other exception type's handling is changed.
+        $exceptions->render(function (TokenMismatchException $e, Request $request) {
+            if (! $request->expectsJson()) {
+                return redirect()->route('login')
+                    ->with('status', 'Your session expired. Please sign in again.');
+            }
+        });
     })->create();
