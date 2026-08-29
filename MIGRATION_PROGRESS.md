@@ -1,8 +1,34 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 5.2 (Doctor module — directory, detail, self-service profile) — COMPLETE. Phase 5.1 (Patient module — detail, my-profile, limited update) — COMPLETE (was already fully implemented in commits `2ea3c38`..`4f900bf`, 2026-08-27/28; this file's "Current phase" line had not been updated to reflect that until now — see this section's own note below). Phase 5 Step 3 (RLS context) remains COMPLETE and unchanged.
+**Current phase:** Phase 5.2 (Doctor module — directory, detail, self-service profile) — **COMPLETE, PRODUCTION VERIFIED** (manual production verification 2026-08-29, latest Phase 5.2 commit `9f0fd71c4beb634349cf5433c9ea14107a63dfa1`; see "Production Verification" subsection below). Phase 5.1 (Patient module — detail, my-profile, limited update) — COMPLETE (was already fully implemented in commits `2ea3c38`..`4f900bf`, 2026-08-27/28; this file's "Current phase" line had not been updated to reflect that until now — see this section's own note below). Phase 5 Step 3 (RLS context) remains COMPLETE and unchanged. **Phase 6 — NOT STARTED.**
 
 ## Phase 5.2 — Doctor Module
+
+### Production Verification (2026-08-29)
+
+Phase 5.2 was manually verified directly against production and is being recorded here as **COMPLETE / PRODUCTION VERIFIED**, superseding the sandbox-only testing caveats below for the purposes of production status (those caveats remain accurate as a record of what the sandbox itself could/couldn't run, and are left unchanged further down).
+
+- **Environment:** `https://mediconnect-india.onrender.com`
+- **Account:** `mc.test.doctor`
+- **Verified commit:** `9f0fd71c4beb634349cf5433c9ea14107a63dfa1` (latest Phase 5.2 commit, already deployed)
+- **Full Doctor flow verified live, in order:**
+  1. Login — PASS
+  2. Dashboard access — PASS
+  3. Doctors directory (`/doctors`) — PASS
+  4. My Doctor Profile (`/my-doctor-profile`) — PASS
+  5. Create doctor profile — PASS
+  6. Created profile appears in Doctors directory — PASS
+  7. Open doctor detail page — PASS
+  8. Edit/update doctor profile — PASS
+  9. Update persisted correctly (`years_experience` 2 → 3) — PASS
+  10. No 419/500 error occurred anywhere in the complete flow — PASS
+- **Doctor create/read/update flow:** VERIFIED in production.
+- **Doctor directory/detail screens:** VERIFIED in production.
+- **Automated test limitation:** the sandbox's standing `composer install`/`php artisan test` block (`repo.packagist.org` unreachable — see "Testing results (Phase 5.2)" below) is a **sandbox/tooling limitation only**. It is documented as such and is explicitly **not** treated as a production feature failure — production behavior for the full Doctor flow has now been confirmed directly, superseding the need for that automated run to establish Phase 5.2 correctness.
+- **`doctor_specialties` pivot/catalog integration:** remains deferred future work, unchanged from the "Known gap carried forward" note below — not part of Phase 5.2's scope and not required for this COMPLETE status.
+- **Not touched during this verification pass:** Patient, Facility, Auth, RLS/RBAC, and existing Doctor functionality — no code, migrations, or production configuration changes were made; this was a verification-and-documentation-only pass.
+- **Phase 6:** NOT STARTED. Not begun as part of, or as a follow-on to, this verification pass.
+
 
 ### Note on this file being found stale at the start of this session
 Before any Phase 5.2 code was written, the repository's actual state was audited (git log + routes/web.php + live Supabase schema/RLS), per the standing instruction to treat GitHub main as source of truth. That audit found Phase 5.1 (Patient detail, "My Profile", limited update — routes `/patients/{patient}`, `/my-profile`) was already fully built and live, documented in `routes/web.php`'s own header comment and in 15 commits (`2ea3c38` through `4f900bf`), including a same-day production bug already found and fixed (`52b00dc`, `known_allergies` array-cast mismatch). This file's "Current phase" line, however, still read "Phase 5 Step 3... Staff invitation and patient-profile creation are still separate, not-yet-approved next steps" — i.e. it had not been updated since Phase 5 Step 3, the same gap this file's own history already flagged once before (commit `2ba67b8`, re: Phase 4 vs. Step 3). Corrected as part of this phase rather than carried forward silently.
@@ -252,4 +278,4 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 
 ## Next task
 
-Phase 5.2 (Doctor module) is complete. Waiting for explicit approval before starting the next Phase 4 core module (Facility/Hospital admin, Appointments, Clinical/EHR, Laboratory, Pharmacy, Billing, Notifications/Search, or Admin/Super Admin — per `LARAVEL_MIGRATION_PLAN.md`'s ordering) or any other further work, per the stop condition in this session's instructions.
+Phase 5.2 (Doctor module) is complete and **production-verified** (see "Production Verification (2026-08-29)" above). **Phase 6 has NOT been started.** Waiting for explicit approval before starting Phase 6 or any other further work, per the stop condition in this session's instructions.
