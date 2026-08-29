@@ -19,6 +19,12 @@
     hasActiveStaffAssignment() condition as "Patients" — a UX choice
     (only staff members are plausible doctors), not an authorization
     change; /my-doctor-profile itself carries no 'role' gate.
+
+    Phase 6: "My Staff Profile" / "My Shifts" / "My Leave" reuse the
+    same hasActiveStaffAssignment() condition — but here it DOES match
+    the routes' real authorization ('role' gates all three), unlike
+    the Doctor links above, since staff_assignments is admin-managed
+    and there's no self-service path a patient could reach anyway.
 --}}
 <aside {{ $attributes->merge(['class' => 'w-64 shrink-0 flex-col border-r border-surface-muted bg-white ' . $class]) }}>
     <div class="flex items-center gap-2 px-5 py-4 border-b border-surface-muted">
@@ -44,6 +50,15 @@
             </x-sidebar-link>
             <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
                 My Doctor Profile
+            </x-sidebar-link>
+            <x-sidebar-link href="{{ route('staff.my-profile') }}" :active="request()->routeIs('staff.my-profile')">
+                My Staff Profile
+            </x-sidebar-link>
+            <x-sidebar-link href="{{ route('staff.my-shifts') }}" :active="request()->routeIs('staff.my-shifts')">
+                My Shifts
+            </x-sidebar-link>
+            <x-sidebar-link href="{{ route('staff.my-leave') }}" :active="request()->routeIs('staff.my-leave')">
+                My Leave
             </x-sidebar-link>
         @endif
     </nav>
