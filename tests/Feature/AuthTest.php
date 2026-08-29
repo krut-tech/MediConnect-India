@@ -43,6 +43,19 @@ use Tests\TestCase;
  * sqlite_testing/no-tables gap noted above, which is a separate,
  * already-documented limitation of this sandbox, not something this
  * update changes either way.
+ *
+ * SESSION STABILIZATION UPDATE (2026-08-29): AuthController no longer
+ * stores 'supabase.access_token' or 'supabase.refresh_token' in the
+ * Laravel session (root cause: SESSION_DRIVER=cookie needs a small,
+ * secret-free session payload — see MIGRATION_PROGRESS.md). Tests below
+ * that previously asserted 'supabase.access_token' was present after
+ * login now assert the opposite — that it is never stored — and
+ * test_logout_invalidates_session no longer seeds an access token or
+ * fakes a Supabase revocation HTTP call, since logout() no longer makes
+ * one. A new test, test_logout_removes_authentication_without_supabase_call,
+ * proves local Laravel logout still fully de-authenticates the session
+ * (guard logged out, protected route inaccessible afterward) with zero
+ * dependency on any Supabase-side token or HTTP call.
  */
 class AuthTest extends TestCase
 {
@@ -138,7 +151,11 @@ class AuthTest extends TestCase
         ]);
 
         $response->assertRedirect(route('dashboard'));
-        $this->assertNotNull(session('supabase.access_token'));
+        // Session stabilization: the raw Supabase access token and
+        // refresh token must never be stored in the Laravel session —
+        // this is what makes SESSION_DRIVER=cookie safe for this app.
+        $this->assertNull(session('supabase.access_token'));
+        $this->assertNull(session('supabase.refresh_token'));
         $this->assertEquals('Test User', session('supabase.profile')['full_name']);
         // Phase 5 Step 3: the RLS context service needs this, cached
         // from the SAME verifyAccessToken() call above — not re-decoded.
@@ -200,20 +217,50 @@ class AuthTest extends TestCase
 
     public function test_logout_invalidates_session(): void
     {
-        Http::fake(['*/auth/v1/logout*' => Http::response([], 204)]);
-
+        // No Http::fake() for a Supabase revocation call — logout() no
+        // longer makes one. If it did, this test would fail with a real
+        // (unmocked) HTTP attempt, which is itself a useful guard
+        // against that call being silently reintroduced.
         $userId = '11111111-1111-1111-1111-111111111111';
 
         $response = $this->withSession([
-            'supabase.access_token' => 'fake-token',
             'supabase.expires_at' => now()->addHour()->timestamp,
             'supabase.profile' => ['id' => $userId, 'full_name' => 'Test User'],
             'supabase.jwt_claims' => $this->fakeJwtClaims($userId),
         ])->post('/logout');
 
         $response->assertRedirect(route('login'));
-        $this->assertNull(session('supabase.access_token'));
+        $this->assertNull(session('supabase.expires_at'));
+        $this->assertNull(session('supabase.profile'));
         $this->assertNull(session('supabase.jwt_claims'));
+    }
+
+    /**
+     * Proves local Laravel logout fully de-authenticates the session —
+     * guard logged out AND the invalidated session can no longer reach
+     * a protected route — with zero dependency on any Supabase-side
+     * token or HTTP call. This is the guarantee session stabilization
+     * relies on: VerifySupabaseSession only ever reads
+     * supabase.expires_at/supabase.profile from the LOCAL session, so
+     * local invalidation alone is sufficient to log the browser out of
+     * this app, regardless of whether a Supabase access token was ever
+     * cached or explicitly revoked.
+     */
+    public function test_logout_removes_authentication_without_supabase_call(): void
+    {
+        $userId = '11111111-1111-1111-1111-111111111111';
+
+        $this->withSession([
+            'supabase.expires_at' => now()->addHour()->timestamp,
+            'supabase.profile' => ['id' => $userId, 'full_name' => 'Test User'],
+            'supabase.jwt_claims' => $this->fakeJwtClaims($userId),
+        ])->post('/logout')->assertRedirect(route('login'));
+
+        $this->assertGuest('web');
+
+        // A fresh request reusing the same (now-invalidated) session
+        // must be treated as unauthenticated, not just redirected once.
+        $this->get('/dashboard')->assertRedirect(route('login'));
     }
 
     public function test_already_authenticated_session_is_redirected_away_from_login_page(): void

@@ -91,23 +91,22 @@ class AuthController extends Controller
             ->with('status', 'Account created. Please check your email to confirm your address before signing in.');
     }
 
-    public function logout(Request $request, SupabaseAuthService $supabase): RedirectResponse
+    /**
+     * Session stabilization (2026-08-29): this no longer makes a
+     * best-effort Supabase-side revocation call. That call required
+     * caching the raw Supabase access token in the Laravel session
+     * (see establishSession() below for why that's no longer done).
+     * Local session invalidation below — Auth::guard('web')->logout(),
+     * session()->invalidate(), session()->regenerateToken() — is
+     * unchanged and is what actually governs whether this browser is
+     * authenticated against this app: VerifySupabaseSession never reads
+     * a Supabase access/refresh token, only supabase.expires_at and
+     * supabase.profile. Disclosed trade-off: the Supabase-side token is
+     * no longer explicitly revoked on logout and simply expires
+     * naturally instead (bounded by the token's own expiry).
+     */
+    public function logout(Request $request): RedirectResponse
     {
-        $accessToken = $request->session()->get('supabase.access_token');
-
-        if ($accessToken) {
-            // Best-effort — local logout must proceed regardless of
-            // whether Supabase's own revocation call succeeds.
-            try {
-                $supabase->signOut($accessToken);
-            } catch (\Throwable $e) {
-                // Intentionally swallowed: this is a remote revocation
-                // call, not the source of truth for "is this browser
-                // still logged in" — the local session invalidation
-                // below is what actually matters here.
-            }
-        }
-
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
@@ -125,7 +124,6 @@ class AuthController extends Controller
     private function establishSession(Request $request, SupabaseAuthService $supabase, array $tokenResponse): void
     {
         $accessToken = $tokenResponse['access_token'] ?? null;
-        $refreshToken = $tokenResponse['refresh_token'] ?? null;
         $expiresIn = $tokenResponse['expires_in'] ?? null;
 
         if (! $accessToken) {
@@ -155,8 +153,22 @@ class AuthController extends Controller
 
         Auth::guard('web')->login($user);
 
-        $request->session()->put('supabase.access_token', $accessToken);
-        $request->session()->put('supabase.refresh_token', $refreshToken);
+        // Session stabilization (2026-08-29): the raw Supabase access
+        // token and refresh token are deliberately NOT cached in the
+        // Laravel session. They were previously stored here for two
+        // reasons, neither of which requires keeping them in session:
+        //   1. supabase.refresh_token was written but never read
+        //      anywhere in this codebase — no token-refresh flow exists.
+        //   2. supabase.access_token was read in exactly one place,
+        //      AuthController::logout(), for a best-effort Supabase-side
+        //      revocation call. That call has been removed (see
+        //      logout() below) — the Supabase-side token now simply
+        //      expires naturally instead of being explicitly revoked.
+        // Removing both also shrinks the session payload enough to be
+        // safely carried by SESSION_DRIVER=cookie, so the authenticated
+        // session survives Render Free container replacement and idle
+        // spin-down without a paid disk, Redis, or a database sessions
+        // table.
         $request->session()->put('supabase.expires_at', $expiresIn ? now()->addSeconds((int) $expiresIn)->timestamp : null);
         // Cached so VerifySupabaseSession can rehydrate the User model on
         // every subsequent request WITHOUT querying Eloquent's direct DB
