@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\FacilityController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\StaffController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -57,8 +58,21 @@ use Illuminate\Support\Facades\Route;
 | only"). Neither adds any new middleware or changes existing route
 | behavior.
 |
-| Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain out of
-| scope for this phase.
+| Phase 6 adds /my-staff-profile, /my-staff-shifts, /my-staff-leave
+| (GET) and /my-staff-leave (POST) — self-service Staff Module. Unlike
+| /my-profile and /my-doctor-profile, these DO sit behind 'role'
+| (same tier as /patients): staff_assignments itself is admin-managed
+| at the database (only hospital_admin/super_admin can INSERT/UPDATE/
+| DELETE it per live RLS), so there is no self-service "become staff"
+| path the way there is for doctor_profiles — a plain patient account
+| genuinely has nothing to see here and is correctly 403'd, not shown
+| an empty state. See App\Http\Controllers\StaffController's own
+| docblock for the full RLS/scope rationale. No route below accepts a
+| staff/assignment id — identity comes solely from Auth::user(), same
+| as /my-profile and /my-doctor-profile.
+|
+| Appointment/Clinical/Lab/Pharmacy/Billing/Inventory/Admin routes
+| remain out of scope for this phase.
 |
 */
 
@@ -113,5 +127,11 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
         Route::get('/patients/{patient}', [PatientController::class, 'show'])->name('patients.show');
         Route::patch('/patients/{patient}', [PatientController::class, 'update'])->name('patients.update');
+
+        // Phase 6 — Staff self-service module. See header comment above.
+        Route::get('/my-staff-profile', [StaffController::class, 'myProfile'])->name('staff.my-profile');
+        Route::get('/my-staff-shifts', [StaffController::class, 'myShifts'])->name('staff.my-shifts');
+        Route::get('/my-staff-leave', [StaffController::class, 'myLeave'])->name('staff.my-leave');
+        Route::post('/my-staff-leave', [StaffController::class, 'storeLeave'])->name('staff.my-leave.store');
     });
 });
