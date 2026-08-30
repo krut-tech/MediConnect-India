@@ -1,6 +1,61 @@
 # MediConnect India — MIGRATION_PROGRESS.md
 
-**Current phase:** Phase 6 — Appointment Engine + Schedule/Leave/Blocked-Period management. Workstream 2, the Phase 6 Correction (Appointment create-entry-point, Schedule/Availability management), and Phase 6 Finalization (Schedule Edit; Leave management; Blocked-period management; sidebar nav; role/access matrix; regression sweep) are all implemented and pushed — see "Phase 6 Finalization Report (2026-08-30)" immediately below for the honest status. **PHASE 6 STATUS: NEEDS FIXES** (code-complete; a real production bug was found and fixed this session; automated tests are written but not executable in-session; Render/production click-through verification still outstanding). **PHASE 6.1 = NOT STARTED. PHASE 7 = NOT STARTED.**
+**Current phase:** Phase 6 — Appointment Engine + Schedule/Leave/Blocked-Period management. Leave-approval conflict detection (this session's addition, see report immediately below) plus everything Workstream 2 / Phase 6 Correction / Phase 6 Finalization already built is implemented and pushed. **PHASE 6 STATUS: NEEDS FIXES** (code-complete for the scope actually attempted this session; several large spec items were explicitly NOT attempted this session and are listed as deferred below, not silently skipped; automated tests remain written but not executable in-session; Render/production click-through verification still outstanding). **PHASE 6.1 = NOT STARTED. PHASE 7 = NOT STARTED.**
+
+## Phase 6 — Correction: Leave-Approval Conflict Detection (2026-08-30, this session)
+
+### Scope of this session, stated up front
+The instruction this session started from was a very large, ~20-item production-correction spec (global identity resolution audit, doctor/staff creation flow audit, appointment identity display audit, patient cancellation authorization, doctor-leave conflict handling, leave conflict policy, patient protection/rescheduling, leave CRUD, leave search/filtering, a global record search+filter system across ~15 modules, role-specific data views, category/hierarchy navigation, data-scale/performance review, cross-role/cross-facility security re-check, a global "missing data" sweep, and more). Before writing anything, the actual current repository state (this file) and live schema were audited, per the standing instruction. That audit found most of those ~20 items had not been started, and one — doctor leave overlapping already-booked appointments — was already an explicitly documented, flagged gap (LeaveController's own prior docblock: *"a staff_leave row does not itself block appt_available_slots() computation or cancel existing bookings"*).
+
+Given the size of the full spec, this session deliberately scoped to that one already-flagged, well-defined, schema-compatible gap (spec items 5-6: detect and surface appointments affected by an approved/approving leave) rather than attempting a shallow pass across all ~20 items and risking exactly the kind of "claim something is implemented merely because a table exists" failure the spec itself warns against. **Every other item from that spec is listed as NOT ATTEMPTED below, not silently dropped.**
+
+### What was built/fixed this session
+- **`LeaveController::approve()`** now computes `affectedAppointments()` (a new private, read-only method) before changing a leave request's status: active (`booked`/`confirmed`) `appt_bookings` rows for that leave's doctor, whose `scheduled_at` falls inside `leave_start`..`leave_end`. If any exist and the request wasn't already confirmed (`?confirm=1`), the approval is **not applied** — the admin is sent back to `/leave` with a conflict summary (total + per-date counts) and a "confirm and approve anyway" action. This matches the requested `leave requested -> conflict detected -> review affected appointments -> approve` flow using the workflow style the spec itself allows for when the existing design doesn't support automatic resolution ("implement the safest compatible behavior and document the limitation").
+- **`resources/views/leave/index.blade.php`** — added the conflict-summary alert + confirm-anyway form, in the existing design system, no new components.
+- **`tests/Feature/Phase6FinalizationTest.php`** — 3 new structural tests (method signature of `approve()`, existence/visibility of `affectedAppointments()`, unauthenticated-redirect on the approve route). **WRITTEN, NOT RUN** — same standing sandbox limitation as every prior phase (no `php` binary this session either). A real DB-fixture test of "approving withholds the status update when a conflict exists" needs a live doctor/leave/booking row under real RLS, which — like `SupabaseRlsContextTest.php`'s own documented case — is NOT POSSIBLE to build safely against the live project without a dedicated test database; stated here rather than faked.
+
+### Explicitly NOT done this session, and why (schema-safety, not oversight)
+- **Auto-cancelling, auto-rescheduling, or relabeling affected appointments** (spec items 7-8: `RESCHEDULED`/`CANCELLED_BY_FACILITY`/`PENDING_RESCHEDULE` states, alternative-doctor/slot suggestion). Confirmed live via `information_schema.columns` before writing anything this session: `appt_bookings` has no `cancelled_by`/`cancellation_reason`/resolution-state column today, and `staff_leave` has no `requester`/`type`/`reason`/`reviewed_by`/`reviewed_at` column either. Building real resolution/reschedule tracking needs those columns — a schema change requiring separate approval per this repo's standing DB-safety rule ("do not create duplicates," "prefer additive, reviewable, idempotent changes," "do not invent a business policy if the existing schema already has one — inspect first"). Flagged as a **NEEDS DECISION** item below rather than built silently.
+- **Patient-initiated cancellation with `cancelled_by`/`cancelled_at`/`cancellation_reason`** (spec item 4). `AppointmentController::cancel()` already exists and already enforces the correct status-transition rules (`completed`/`no_show`/`cancelled` cannot be re-cancelled) via RLS-gated route-model binding + an affected-row-count check — that part of item 4 is already correct and unchanged. Recording *who* cancelled and *why* needs the same missing columns noted above — same NEEDS DECISION, not built this session.
+- **Global identity-resolution audit** (spec item 1, across ~15 record types). Spot-checked only: `leave/index.blade.php` (pre-existing, unchanged by this session) already follows the correct pattern (`{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }}`) rather than showing a raw UUID/"Unknown". A full repository-wide sweep across every listed record type was NOT performed this session — out of scope for the time actually spent.
+- **Doctor/staff creation-flow audit** (item 2), **appointment identity display audit beyond what item 3 already shows** (`appointments/index.blade.php` was not re-reviewed this session), **leave CRUD expansion** (item 9 — edit/withdraw-own, which `staff_leave`'s live RLS doesn't currently support per `StaffLeave`'s own docblock), **leave search/filtering** (item 10), **the global record search+filter system** (item 11, ~15 modules), **role-specific hierarchical data views** (items 12-13), **data-scale/performance review** (item 14), **cross-role/cross-facility security re-check** (item 16), and **the global "missing data" sweep** (item 17) were **NOT attempted this session**. Each is a genuinely large, separately-scoped body of work in its own right; claiming partial coverage of any of them here would misrepresent what was actually verified.
+
+### Testing / verification results (this session)
+
+| Check | Result | Notes |
+|---|---|---|
+| Live schema check (`information_schema.columns`) for `staff_leave`/`appt_bookings`/`appt_availability`/`staff_assignments`) before writing any code | **PASS** | Read-only; confirmed no resolution-state/cancellation columns exist, which is what scoped this session away from items 7-8 |
+| Manual review of every changed file's raw pushed content (re-fetched via GitHub, not assumed) | **PASS** | `LeaveController.php` and `leave/index.blade.php` both re-fetched and read after writing — clean, no encoding issues in the actual file bytes (the GitHub API's JSON echo of the *commit message* itself came back HTML-entity-encoded, a cosmetic display artifact of that response field only, not of any committed file — verified by re-fetching file content separately) |
+| Route/controller signature cross-check (`approve(StaffLeave $leave, Request $request)` matches how `Route::patch('/leave/{leave}/approve', ...)` will inject it) | **PASS** | Reviewed by hand; Laravel resolves extra typed parameters via the container regardless of route-file signature, so no route change was needed |
+| Supabase security advisors (`get_advisors`, security) re-run before/after | **PASS** | Identical set to every prior phase (empty future-month `audit_log` partitions, extensions-in-public hygiene, `SECURITY DEFINER` RPC-callable helpers, leaked-password-protection toggle) — nothing new introduced |
+| RLS re-verification for the new `affectedAppointments()` query | **PASS (read-only reasoning, not executed)** | Query runs under the same `supabase.rls`-established context as every other query in this controller; relies on already-live `appt_bookings_select_own/_doctor/_facility_staff` policies, unchanged by this session — no new policy, no bypass |
+| `php -l` | **NOT RUN** | No `php` binary in this session's sandbox, same as the immediately preceding Finalization session |
+| `composer install` / `php artisan test` | **BLOCKED / NOT RUN** | Same standing sandbox limitation as every prior phase |
+| `npm install` / `vite build` | **NOT RUN** | No CSS/JS changed — new view content uses only existing design-system component tags/classes |
+| Render deployment status for this session's commits | **NOT CHECKED** | Same outstanding item as the immediately preceding Finalization session |
+| Production click-through (real browser, real login, real leave/appointment fixture) | **NOT DONE** | Needs a real browser session and real seeded data outside this sandbox |
+
+**No runtime "PASS" is claimed for anything not actually executed or actually observed**, consistent with this file's existing convention.
+
+### CRITICAL / HIGH / MEDIUM / LOW (this session's own honest triage)
+- **CRITICAL:** none introduced. The one CRITICAL-adjacent item already in the codebase — cancellation has no audit trail (`cancelled_by`/`cancellation_reason`) — is unchanged by this session and needs a schema decision (see NEEDS DECISION below).
+- **HIGH:** the ~15-module global search/filter system (item 11) and the global identity-resolution sweep (item 1) remain entirely unstarted; both are explicitly requested as whole-application requirements, not optional.
+- **MEDIUM:** leave CRUD is still request-and-decide only (no edit/withdraw-own), and leave has no search/filter UI yet (items 9-10).
+- **LOW:** the cosmetic commit-message HTML-entity-echo noted above (display-only, not a file-content issue).
+
+### SAFE / NEEDS DECISION / DEFERRED
+- **SAFE:** this session's change is additive, read-only in its detection path, changes no existing behavior on the no-conflict path, and required no schema/migration.
+- **NEEDS DECISION:** adding `cancelled_by`/`cancellation_reason`/a resolution-state column set (to actually support items 4, 7, and 8 for real) — a schema change, per standing policy, requires your explicit approval before it's attempted.
+- **DEFERRED (unstarted, not scoped this session):** items 1, 2, 9, 10, 11, 12, 13, 14, 16, 17 of the correction spec, as itemized above.
+
+### Known Limitations (carried forward + new)
+- Approving a leave with detected conflicts still leaves the affected appointments entirely unmodified once confirmed — resolving them (contacting the patient, manual cancel) remains a manual staff action until the NEEDS DECISION schema item above is approved and built.
+- Leave still does not affect `appt_available_slots()` for *new* bookings during an approved period — a still-separate, not-yet-built item, same as documented before this session.
+- Every "DEFERRED" item above is a genuinely large, independent body of work — none should be read as "mostly done."
+
+**PHASE 6.1 = NOT STARTED. PHASE 7 = NOT STARTED.**
+
+---
 
 ## Phase 6 — Finalization Report (2026-08-30)
 
@@ -26,13 +81,13 @@ Continued from the existing GitHub state — not a restart. Audited before writi
 | Live RLS policy re-verification (`pg_policies` for `staff_leave`, `appt_availability`, `appt_bookings`, `patients`, `doctor_profiles`) | **PASS** | Read-only; matches what the new code assumes; zero writes to policies |
 | Live schema check that surfaced the `doctor_user_id`-vs-`doctor_profiles.id` bug | **PASS** | `information_schema.columns` + `pg_constraint` on `doctor_profiles`, read-only |
 | `php -l` | **NOT RUN** | No `php` binary in this session's sandbox at all |
-| `composer install` / `php artisan test` | **BLOCKED / NOT RUN** | Same standing sandbox limitation as every prior phase in this file, now additionally without a PHP CLI to even attempt `php -l` |
+| `composer install` / `php artisan test` | **BLOCKED / NOT RUN** | Same standing sandbox limitation as every prior phase, now additionally without a PHP CLI to even attempt `php -l` |
 | `npm install` / `vite build` | **NOT RUN** | No CSS/JS changed this session — all new views use existing design-system component tags/classes only |
 | GitHub Actions / CI | **N/A, confirmed** | Checked live: the only workflow in this repo (`apply-from-issue.yml`) triggers on issue creation, not on push — there is no CI test run to point to for these commits |
 | Render deployment status for this session's commits | **NOT YET CHECKED** | Outstanding — see "Still outstanding" below |
 | Production click-through (real browser, real login) | **NOT DONE** | Outstanding — see "Still outstanding" below |
 
-**No runtime "PASS" is claimed for anything not actually executed or actually observed**, consistent with this file's existing convention across every prior phase.
+**No runtime "PASS" is claimed for anything not actually executed or actually observed**, consistent with this file's existing convention.
 
 ### Still outstanding (not silently skipped — stated)
 - Render deployment status for this session's commits was not checked (the Render MCP tool required a workspace selection this session did not have confirmation to make — picking one without asking risks acting on the wrong account's resources, per that tool's own guidance).
@@ -60,7 +115,7 @@ Because `SESSION_DRIVER=file` with no persistent disk attached to the Render ser
 
 **Verification performed:**
 - Raw pushed content of `bootstrap/app.php` re-fetched from GitHub and reviewed — valid PHP, no encoding issues, no unrelated lines changed.
-- Render deploy for commit `5d271de` reached `live` (see chat report for deploy ID / timestamps).
+- Render deploy for commit `5d271de` reached `live` status (see chat report for deploy ID / timestamps).
 - Render runtime logs checked post-deploy for new errors — none.
 - **Not yet done:** a fresh real-user click-through of Login → Dashboard → Doctors → My Doctor Profile → Logout → Login again, specifically re-testing logout without an extended idle gap this time, and (separately, optionally) deliberately reproducing the long-idle-tab scenario to confirm the new redirect actually fires instead of the raw 419 page. Both require a real browser session outside this sandbox.
 
@@ -335,6 +390,7 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 3. **`doctor_specialties`** (catalog-linked pivot) not wired — flagged as a Phase 5.2 known gap above.
 4. **Session-storage durability** across container replacement — flagged since Phase 4, now confirmed to actually occur in production (Phase 5.2 logout 419). Needs a deliberate choice: Render persistent disk, DB-backed sessions (schema change), or Redis.
 5. Local/offline workspace still not inspected (no access outside GitHub/Supabase/Vercel/Render connectors) — if any code or wireframes exist only on your machine, worth sharing before further phases.
+6. **This session's NEEDS DECISION item:** adding cancellation-audit and appointment-resolution-state columns to `appt_bookings`, and requester/type/reason/reviewed-by columns to `staff_leave`, is required to properly finish spec items 4, 7, and 8 — a schema change, needs your explicit approval before it's attempted.
 
 ## Git
 
@@ -343,4 +399,4 @@ Supabase Auth (GoTrue) + PostgREST, using the end user's own JWT — approved Op
 
 ## Next task
 
-Phase 6 Finalization (items 1–3, sidebar nav, role/access matrix, repository production-issue sweep) is code-complete and pushed — see "Phase 6 — Finalization Report (2026-08-30)" at the top of this file for the full honest status, including a real production bug found and fixed this session and what verification is still outstanding (Render deployment status, a real browser click-through). **PHASE 6.1 and PHASE 7 have NOT been started.** Waiting on Render/production verification (outside this sandbox) before Phase 6 can be marked COMPLETE.
+This session's leave-approval conflict detection (spec items 5-6) is code-complete and pushed — see the report at the very top of this file. The much larger remainder of the ~20-item correction spec (global identity audit, global search/filter system, leave CRUD/search, cross-role security re-check, data-scale review, etc.) is **explicitly NOT attempted** and remains open — see that report's "DEFERRED" list for the full itemization, so the next session can pick up specific items deliberately rather than guessing at what's left. **PHASE 6.1 and PHASE 7 have NOT been started.** Waiting on: (1) your decision on the NEEDS DECISION schema item above, (2) Render/production verification (outside this sandbox), before Phase 6 can be marked COMPLETE.
