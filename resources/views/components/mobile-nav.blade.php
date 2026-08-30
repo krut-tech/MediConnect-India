@@ -40,6 +40,13 @@
             assignment" — see sidebar.blade.php's docblock for the full
             rationale (a Hospital Admin account was confirmed to see
             this link under the old condition).
+
+            PHASE 6 FINALIZATION: this panel had fallen out of sync with
+            sidebar.blade.php — "My Schedule" and "Leave & Blocked
+            Periods" existed on desktop only. Added here with the exact
+            same two conditions as sidebar.blade.php (see that file's
+            docblock for the full rationale); both remain UX-only, no
+            change to route/RLS authorization.
         --}}
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
@@ -62,6 +69,16 @@
             @if (auth()->user()?->hasActiveRole('doctor'))
                 <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
                     My Doctor Profile
+                </x-sidebar-link>
+            @endif
+            @if (auth()->user()?->hasActiveRole('doctor') && auth()->user()?->doctorProfile)
+                <x-sidebar-link href="{{ route('doctors.schedule', ['doctor' => auth()->user()->doctorProfile]) }}" :active="request()->routeIs('doctors.schedule') || request()->routeIs('schedule.*')">
+                    My Schedule
+                </x-sidebar-link>
+            @endif
+            @if (auth()->user()?->hasActiveStaffAssignment())
+                <x-sidebar-link href="{{ route('leave.index') }}" :active="request()->routeIs('leave.*')">
+                    Leave &amp; Blocked Periods
                 </x-sidebar-link>
             @endif
         </nav>
