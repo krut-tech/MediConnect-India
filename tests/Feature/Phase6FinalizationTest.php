@@ -6,7 +6,8 @@ use Tests\TestCase;
 
 /**
  * PHASE 6 FINALIZATION — Schedule Edit (item 1) and Leave/Blocked-Period
- * management (items 2+3).
+ * management (items 2+3), extended with leave-approval conflict
+ * detection (items 5-6 of the Phase 6 correction spec).
  *
  * EXECUTABILITY NOTE — READ BEFORE TRUSTING ANY RESULT FROM THIS FILE:
  * this file was written and reviewed by hand, but NOT executed and NOT
@@ -28,7 +29,13 @@ use Tests\TestCase;
  * since this session cannot seed or verify against a real test DB
  * either — that would be writing tests to a guess, not to a verified
  * fixture, which is the same discipline RoleAuthorizationTest.php
- * already applies to role-code fixtures.
+ * already applies to role-code fixtures. The conflict-detection
+ * behavior itself (approve() withholding the status update when
+ * affected appointments exist) is exactly this kind of DB-fixture-
+ * dependent case — it needs a real doctor/leave/booking row under real
+ * RLS to assert against, which is the same gap
+ * SupabaseRlsContextTest.php's own docblock already states is NOT
+ * POSSIBLE against this sandbox rather than faked here too.
  */
 class Phase6FinalizationTest extends TestCase
 {
@@ -130,5 +137,36 @@ class Phase6FinalizationTest extends TestCase
         $this->withSession($this->authenticatedSession($userId))
             ->get('/facilities')
             ->assertOk();
+    }
+
+    // --- Items 5-6 (Phase 6 correction): leave-approval conflict detection ---
+
+    public function test_leave_controller_approve_accepts_a_request_parameter(): void
+    {
+        // approve() gained a Request $request parameter (to read the
+        // ?confirm=1 flag) alongside the existing StaffLeave $leave
+        // route-model-bound parameter — this asserts the method
+        // signature still matches what the 'leave.approve' route
+        // expects to be able to inject, without needing a real DB row.
+        $method = new \ReflectionMethod(\App\Http\Controllers\LeaveController::class, 'approve');
+        $params = $method->getParameters();
+
+        $this->assertCount(2, $params);
+        $this->assertSame(\App\Models\StaffLeave::class, $params[0]->getType()?->getName());
+        $this->assertSame(\Illuminate\Http\Request::class, $params[1]->getType()?->getName());
+    }
+
+    public function test_leave_controller_has_private_affected_appointments_method(): void
+    {
+        $this->assertTrue(method_exists(\App\Http\Controllers\LeaveController::class, 'affectedAppointments'));
+
+        $method = new \ReflectionMethod(\App\Http\Controllers\LeaveController::class, 'affectedAppointments');
+        $this->assertTrue($method->isPrivate());
+    }
+
+    public function test_unauthenticated_request_to_approve_leave_redirects_to_login(): void
+    {
+        $fakeId = '22222222-2222-2222-2222-222222222222';
+        $this->patch("/leave/{$fakeId}/approve")->assertRedirect(route('login'));
     }
 }
