@@ -30,12 +30,16 @@
             this panel can't fall out of sync with the desktop sidebar.
 
             Phase 5.2: "Doctors" unconditional (public directory, same
-            tier as Facilities); "My Doctor Profile" under the same
-            hasActiveStaffAssignment() condition as "Patients" — see
-            sidebar.blade.php's docblock for the full rationale.
+            tier as Facilities).
 
             Phase 6 WS2: "Appointments" unconditional, mirrors
             sidebar.blade.php — see its docblock for the full rationale.
+
+            PHASE 6 CORRECTION: "My Doctor Profile" now gated on
+            Auth::user()->hasActiveRole('doctor') instead of "any staff
+            assignment" — see sidebar.blade.php's docblock for the full
+            rationale (a Hospital Admin account was confirmed to see
+            this link under the old condition).
         --}}
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
@@ -54,6 +58,8 @@
                 <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
                     Patients
                 </x-sidebar-link>
+            @endif
+            @if (auth()->user()?->hasActiveRole('doctor'))
                 <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
                     My Doctor Profile
                 </x-sidebar-link>
