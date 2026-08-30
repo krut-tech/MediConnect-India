@@ -27,13 +27,18 @@ use Illuminate\Http\RedirectResponse;
  * gating (the existing 'role' middleware group) to keep a plain patient
  * account from even reaching the form.
  *
- * Deliberately NOT covered by this foundation (see PHASE 6 correction
- * report — out of scope for this pass, not silently skipped):
- *   - a dedicated leave/blocked-period UI (staff_leave already exists
- *     and is already excluded by AppointmentAvailabilityService/
- *     appt_available_slots() when computing live slots — only a
- *     management screen for it is missing)
- *   - editing an existing row (only create + soft-delete/deactivate)
+ * PHASE 6 FINALIZATION adds edit() / update() (Schedule Edit, item 1).
+ * Same RLS, same table, same request class as store() — the only new
+ * behavior is a WHERE-key UPDATE instead of an INSERT. facility_id
+ * changes are allowed (a doctor/admin correcting which facility a slot
+ * belongs to) — the WITH CHECK clause of appt_availability_write_doctor
+ * re-evaluates against the NEW facility_id on every UPDATE, so moving a
+ * row to a facility the caller isn't authorized for is rejected by
+ * Postgres itself (SQLSTATE 42501), not assumed safe by this
+ * controller.
+ *
+ * Leave/blocked-period management is a separate concern — see
+ * LeaveController (staff_leave), not this controller.
  */
 class AvailabilityController extends Controller
 {
@@ -106,6 +111,79 @@ class AvailabilityController extends Controller
         }
 
         return redirect()->route('doctors.schedule', $doctor)->with('status', 'Schedule published.');
+    }
+
+    /**
+     * Edit form for one existing schedule row. Implicit route-model
+     * binding: if RLS (appt_availability_select_public: deleted_at IS
+     * NULL) hides this row, or the row was already deactivated, the
+     * underlying SELECT returns no rows -> 404, same pattern as every
+     * other show()/edit() in this app. This does NOT independently
+     * check whether the caller is allowed to WRITE this row — that is
+     * update()'s job (RLS is only consulted on the actual UPDATE) — so
+     * a caller who can see a row (public, per appt_availability_
+     * select_public) but not write it will simply have their save
+     * rejected on submit, same as store() above.
+     */
+    public function edit(AppointmentAvailability $availability): View
+    {
+        $availability->loadMissing('doctorUser');
+
+        $facilities = Facility::query()
+            ->orderBy('name')
+            ->limit(200)
+            ->get(['id', 'name']);
+
+        return view('availability.edit', [
+            'availability' => $availability,
+            'facilities' => $facilities,
+        ]);
+    }
+
+    /**
+     * Updates one existing schedule row in place — the "update
+     * schedule" action from the spec (distinct from destroy()'s
+     * "disable schedule"). doctor_user_id is deliberately never part of
+     * $data/the update payload — StoreAvailabilityRequest's rules don't
+     * include it, so a row can never be reassigned to a different
+     * doctor through this form. Uses the same affected-row-count
+     * pattern as destroy()/PatientController::applyScopedUpdate(): a
+     * caller outside appt_availability_write_doctor's WITH CHECK for
+     * either the row's current facility_id or the newly-submitted one
+     * gets 0 affected rows, reported as an ordinary error, never
+     * silently treated as success.
+     */
+    public function update(AppointmentAvailability $availability, StoreAvailabilityRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+
+        try {
+            $affected = AppointmentAvailability::query()
+                ->whereKey($availability->getKey())
+                ->whereNull('deleted_at')
+                ->update([
+                    'facility_id' => $data['facility_id'],
+                    'day_of_week' => $data['day_of_week'],
+                    'start_time' => $data['start_time'],
+                    'end_time' => $data['end_time'],
+                    'slot_duration_minutes' => $data['slot_duration_minutes'],
+                    'valid_from' => $data['valid_from'],
+                    'valid_until' => $data['valid_until'] ?? null,
+                ]);
+        } catch (QueryException $e) {
+            return back()
+                ->withErrors(['schedule' => 'This schedule could not be updated. You may not be authorized to manage this doctor\'s schedule at this facility.'])
+                ->withInput();
+        }
+
+        if ($affected === 0) {
+            return back()
+                ->withErrors(['schedule' => 'This schedule entry could not be updated.'])
+                ->withInput();
+        }
+
+        return redirect()->route('doctors.schedule', ['doctor' => $availability->doctor_user_id])
+            ->with('status', 'Schedule updated.');
     }
 
     /**
