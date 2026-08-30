@@ -3,8 +3,8 @@
         <x-breadcrumb :items="[
             ['label' => 'Dashboard', 'href' => route('dashboard')],
             ['label' => 'Doctors', 'href' => route('doctors.index')],
-            ['label' => $availability->doctorUser?->full_name ?? 'Doctor', 'href' => route('doctors.show', ['doctor' => $availability->doctor_user_id])],
-            ['label' => 'Schedule', 'href' => route('doctors.schedule', ['doctor' => $availability->doctor_user_id])],
+            ['label' => $availability->doctorUser?->full_name ?? 'Doctor', 'href' => route('doctors.show', ['doctor' => $doctorProfileId])],
+            ['label' => 'Schedule', 'href' => route('doctors.schedule', ['doctor' => $doctorProfileId])],
             ['label' => 'Edit'],
         ]" class="mb-3" />
 
@@ -55,7 +55,7 @@
 
             <div class="flex gap-3">
                 <x-button type="submit" variant="primary">Save changes</x-button>
-                <x-button href="{{ route('doctors.schedule', ['doctor' => $availability->doctor_user_id]) }}" variant="secondary">Cancel</x-button>
+                <x-button href="{{ route('doctors.schedule', ['doctor' => $doctorProfileId]) }}" variant="secondary">Cancel</x-button>
             </div>
         </form>
     </x-card>
