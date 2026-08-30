@@ -8,7 +8,13 @@
         <x-page-header
             title="My Doctor Profile"
             subtitle="Published to the public Doctors directory."
-        />
+        >
+            @if($doctor)
+                <x-slot name="actions">
+                    <x-button :href="route('doctors.schedule', $doctor)" variant="secondary">Manage schedule</x-button>
+                </x-slot>
+            @endif
+        </x-page-header>
     </x-slot>
 
     @if(session('status'))
