@@ -63,6 +63,17 @@ use Throwable;
  * middleware group in routes/web.php (any active staff assignment) —
  * the same tier /patients already uses — since only staff should be
  * booking on behalf of someone else at all.
+ *
+ * ============================================================
+ * PHASE 6 CORRECTION — CANCELLATION AUDIT TRAIL (2026-08-30)
+ * ============================================================
+ * cancel() now also records who cancelled, when, and why
+ * (cancelled_by/cancelled_at/cancellation_reason — additive columns,
+ * see migration phase6_cancellation_and_leave_audit_columns). The
+ * authorization/status-transition rules themselves are unchanged: RLS
+ * still decides whether the UPDATE affects a row at all, and
+ * completed/no_show/already-cancelled bookings still cannot be
+ * re-cancelled.
  */
 class AppointmentController extends Controller
 {
@@ -237,14 +248,27 @@ class AppointmentController extends Controller
      * the UPDATE actually takes effect is read from the affected-row
      * count, never assumed from Eloquent's return value — matching
      * PatientController::applyScopedUpdate()'s established pattern.
+     *
+     * Also records cancelled_by/cancelled_at/cancellation_reason
+     * (additive columns — see class docblock). An optional free-text
+     * `reason` field may be submitted; it is never required, since
+     * making it mandatory would be a UX change beyond this session's
+     * scope.
      */
-    public function cancel(AppointmentBooking $booking): RedirectResponse
+    public function cancel(AppointmentBooking $booking, Request $request): RedirectResponse
     {
         if (in_array($booking->status, ['cancelled', 'completed', 'no_show'], true)) {
             return redirect()->route('appointments.index')->with('status', 'This appointment is already closed out.');
         }
 
-        $affected = AppointmentBooking::query()->whereKey($booking->getKey())->update(['status' => 'cancelled']);
+        $reason = trim((string) $request->input('reason', ''));
+
+        $affected = AppointmentBooking::query()->whereKey($booking->getKey())->update([
+            'status' => 'cancelled',
+            'cancelled_by' => Auth::id(),
+            'cancelled_at' => now(),
+            'cancellation_reason' => $reason !== '' ? $reason : null,
+        ]);
 
         if ($affected === 0) {
             return back()->withErrors(['cancel' => 'This appointment could not be cancelled.']);
