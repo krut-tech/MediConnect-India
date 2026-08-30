@@ -43,6 +43,26 @@ use Throwable;
  *    the same ordinary error, never a 500.
  * Idempotency (retry/double-submit/back-button) is handled by the
  * (booked_by, idempotency_key) unique index — SQLSTATE 23505.
+ *
+ * ============================================================
+ * PHASE 6 CORRECTION — ADMIN "CREATE APPOINTMENT" WORKFLOW
+ * ============================================================
+ * Per the spec: "Do NOT use the patient's self-booking workflow for
+ * administrators." The underlying booking mechanism (pick a facility,
+ * pick a date, see real live slots, submit) is exactly the same either
+ * way — that engine is Workstream 2 and must not be duplicated (see
+ * class docblock above; there is deliberately only one slot-computation
+ * path in this app). What differs is the ENTRY POINT: a patient starts
+ * from a specific doctor's public profile and books for themselves; an
+ * administrator now starts from Appointments -> Create Appointment
+ * (createStart() below), picks a patient (by MRN) and a doctor first,
+ * and is then handed to the SAME create()/store() pair below with the
+ * patient MRN carried along as a query parameter — no second booking
+ * form, no second slot-computation code path, no new appt_bookings
+ * write path. createStart() is gated behind the existing 'role'
+ * middleware group in routes/web.php (any active staff assignment) —
+ * the same tier /patients already uses — since only staff should be
+ * booking on behalf of someone else at all.
  */
 class AppointmentController extends Controller
 {
@@ -67,26 +87,70 @@ class AppointmentController extends Controller
     }
 
     /**
+     * Step 1 of the staff/admin "Create Appointment" workflow: choose
+     * WHO the appointment is for (by MRN — the same identifier every
+     * other staff-facing screen in this app uses, never a raw patient
+     * id) and WHICH doctor. Deliberately does not resolve or validate
+     * the MRN itself here — resolvePatientId() (used by both this path
+     * and the patient self-booking path) is the single place that
+     * happens, at submit time, via the same RLS-scoped lookup either
+     * way. This screen only decides which doctor's create() page to
+     * hand off to.
+     */
+    public function createStart(Request $request): View|RedirectResponse
+    {
+        $search = trim((string) $request->query('q', ''));
+        $patientMrn = trim((string) $request->query('patient_mrn', ''));
+        $doctorId = $request->query('doctor_id');
+
+        if ($doctorId && $patientMrn !== '') {
+            $doctor = DoctorProfile::query()->find($doctorId);
+
+            if ($doctor) {
+                return redirect()->route('doctors.book', [
+                    'doctor' => $doctor->getKey(),
+                    'patient_mrn' => $patientMrn,
+                ]);
+            }
+        }
+
+        $doctors = DoctorProfile::query()
+            ->with('user')
+            ->when(
+                $search !== '',
+                fn ($query) => $query->whereHas(
+                    'user',
+                    fn ($userQuery) => $userQuery->where('full_name', 'ilike', "%{$search}%")
+                )
+            )
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        return view('appointments.create-start', [
+            'doctors' => $doctors,
+            'search' => $search,
+            'patientMrn' => $patientMrn,
+        ]);
+    }
+
+    /**
      * Booking form for a specific doctor: pick a published facility,
      * pick a date, see the real currently-available slots for that
      * exact combination.
      *
-     * PHASE 6 CORRECTION: this is the patient self-booking workflow.
-     * An administrator (hospital_admin / any platform-tier role) is
-     * redirected to Appointments instead of seeing this form, whether
-     * they arrived via the (now-hidden) button, a bookmark, or a typed
-     * URL — see AppointmentController's class docblock and
-     * User::isAdministrator(). This is a workflow redirect, not a new
-     * authorization boundary: store()'s resolvePatientId() already
-     * independently prevents an admin from booking "as themselves".
+     * A plain patient reaches this directly from a doctor's public
+     * profile and books for themselves. Staff/admins reach it via
+     * createStart() above, with an already-chosen patient MRN carried
+     * in the `patient_mrn` query parameter and pre-filled (read-only)
+     * on the form below — see appointments/create.blade.php — so the
+     * doctor's own public profile page never again presents the
+     * patient self-booking framing to an administrator (doctors/show.
+     * blade.php shows "Manage appointments" -> Appointments for them
+     * instead of "Book appointment").
      */
-    public function create(DoctorProfile $doctor, Request $request, AppointmentAvailabilityService $availability): View|RedirectResponse
+    public function create(DoctorProfile $doctor, Request $request, AppointmentAvailabilityService $availability): View
     {
-        if (Auth::user()?->isAdministrator()) {
-            return redirect()->route('appointments.index')
-                ->with('status', 'Administrators book appointments on behalf of a patient from Appointments, not from a doctor\'s profile.');
-        }
-
         $doctor->loadMissing('user');
 
         $facilities = AppointmentAvailability::query()
@@ -117,6 +181,7 @@ class AppointmentController extends Controller
             'date' => $date,
             'slots' => $slots,
             'canBookForOthers' => Auth::user()?->hasActiveStaffAssignment() ?? false,
+            'prefillMrn' => trim((string) $request->query('patient_mrn', '')),
         ]);
     }
 
