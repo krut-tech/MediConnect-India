@@ -37,6 +37,17 @@ use Illuminate\Http\RedirectResponse;
  * Postgres itself (SQLSTATE 42501), not assumed safe by this
  * controller.
  *
+ * PHASE 6 FINALIZATION production-issue fix: update()/destroy() were
+ * redirecting to route('doctors.schedule', ['doctor' =>
+ * $availability->doctor_user_id]) — but {doctor} binds to
+ * DoctorProfile::id (its own gen_random_uuid() primary key, verified
+ * live via information_schema), NOT users.id. doctor_profiles.user_id
+ * is UNIQUE (verified live via pg_constraint), so exactly one
+ * DoctorProfile exists per doctor_user_id; resolveDoctorProfileId()
+ * below looks it up rather than passing the wrong id and 404ing after
+ * every save. index()/store() were unaffected — they already receive
+ * the correct DoctorProfile via route-model binding directly.
+ *
  * Leave/blocked-period management is a separate concern — see
  * LeaveController (staff_leave), not this controller.
  */
@@ -137,6 +148,7 @@ class AvailabilityController extends Controller
         return view('availability.edit', [
             'availability' => $availability,
             'facilities' => $facilities,
+            'doctorProfileId' => $this->resolveDoctorProfileId($availability),
         ]);
     }
 
@@ -182,7 +194,7 @@ class AvailabilityController extends Controller
                 ->withInput();
         }
 
-        return redirect()->route('doctors.schedule', ['doctor' => $availability->doctor_user_id])
+        return redirect()->route('doctors.schedule', ['doctor' => $this->resolveDoctorProfileId($availability)])
             ->with('status', 'Schedule updated.');
     }
 
@@ -201,6 +213,8 @@ class AvailabilityController extends Controller
      */
     public function destroy(AppointmentAvailability $availability): RedirectResponse
     {
+        $doctorProfileId = $this->resolveDoctorProfileId($availability);
+
         $affected = AppointmentAvailability::query()
             ->whereKey($availability->getKey())
             ->whereNull('deleted_at')
@@ -210,7 +224,28 @@ class AvailabilityController extends Controller
             return back()->withErrors(['schedule' => 'This schedule entry could not be removed.']);
         }
 
-        return redirect()->route('doctors.schedule', ['doctor' => $availability->doctor_user_id])
+        return redirect()->route('doctors.schedule', ['doctor' => $doctorProfileId])
             ->with('status', 'Schedule entry removed.');
+    }
+
+    /**
+     * {doctor} on the schedule routes binds to DoctorProfile::id (its
+     * own primary key) — NOT users.id. $availability->doctor_user_id is
+     * a users.id, so it can never be passed directly as the route
+     * parameter (verified live: doctor_profiles.id defaults to
+     * gen_random_uuid(), a separate column from user_id). Falls back to
+     * the raw doctor_user_id only if no DoctorProfile row exists yet
+     * (edge case: a doctor with schedule rows but who has since deleted
+     * their public profile) so the redirect still resolves to
+     * /doctors/{doctor}/schedule via SOME identifier rather than
+     * throwing — that route's own DoctorProfile binding will then 404
+     * naturally, which is the correct, honest outcome for that edge
+     * case rather than this method masking it.
+     */
+    private function resolveDoctorProfileId(AppointmentAvailability $availability): string
+    {
+        return DoctorProfile::query()
+            ->where('user_id', $availability->doctor_user_id)
+            ->value('id') ?? $availability->doctor_user_id;
     }
 }
