@@ -1,15 +1,24 @@
 <x-layouts.authenticated title="Book an appointment">
     <x-slot name="header">
-        <x-breadcrumb :items="[
-            ['label' => 'Dashboard', 'href' => route('dashboard')],
-            ['label' => 'Doctors', 'href' => route('doctors.index')],
-            ['label' => $doctor->user?->full_name ?? 'Doctor', 'href' => route('doctors.show', $doctor)],
-            ['label' => 'Book appointment'],
-        ]" class="mb-3" />
+        <x-breadcrumb :items="$prefillMrn !== ''
+            ? [
+                ['label' => 'Dashboard', 'href' => route('dashboard')],
+                ['label' => 'Appointments', 'href' => route('appointments.index')],
+                ['label' => 'Create appointment', 'href' => route('appointments.create')],
+                ['label' => $doctor->user?->full_name ?? 'Doctor'],
+            ]
+            : [
+                ['label' => 'Dashboard', 'href' => route('dashboard')],
+                ['label' => 'Doctors', 'href' => route('doctors.index')],
+                ['label' => $doctor->user?->full_name ?? 'Doctor', 'href' => route('doctors.show', $doctor)],
+                ['label' => 'Book appointment'],
+            ]" class="mb-3" />
 
         <x-page-header
             :title="'Book with '.($doctor->user?->full_name ?? 'this doctor')"
-            subtitle="Every slot below is computed live from this doctor's real schedule, leave, and existing bookings — nothing here is hard-coded."
+            :subtitle="$prefillMrn !== ''
+                ? 'Step 2 of 2 — every slot below is computed live from this doctor\'s real schedule, leave, and existing bookings.'
+                : 'Every slot below is computed live from this doctor\'s real schedule, leave, and existing bookings — nothing here is hard-coded.'"
         />
     </x-slot>
 
@@ -23,6 +32,13 @@
         <x-alert variant="danger" class="mb-4">{{ $message }}</x-alert>
     @enderror
 
+    @if($canBookForOthers && $prefillMrn !== '')
+        <x-alert variant="info" class="mb-4">
+            Booking for patient MRN {{ $prefillMrn }}.
+            <a href="{{ route('appointments.create') }}" class="underline">Change patient or doctor</a>
+        </x-alert>
+    @endif
+
     @if($facilities->isEmpty())
         <x-card>
             <x-empty-state
@@ -33,6 +49,9 @@
     @else
         <x-card title="Choose facility and date" class="mb-6">
             <form method="GET" action="{{ route('doctors.book', $doctor) }}" class="grid gap-4 sm:grid-cols-3 sm:items-end">
+                @if($prefillMrn !== '')
+                    <input type="hidden" name="patient_mrn" value="{{ $prefillMrn }}">
+                @endif
                 <div>
                     <label for="facility_id" class="form-label">Facility</label>
                     <select name="facility_id" id="facility_id" class="form-input">
@@ -82,10 +101,17 @@
                             </select>
 
                             @if($canBookForOthers)
-                                <input type="text" name="patient_mrn" placeholder="Patient MRN" class="form-input text-sm">
+                                @if($prefillMrn !== '')
+                                    <input type="hidden" name="patient_mrn" value="{{ $prefillMrn }}">
+                                    <p class="text-xs text-ink-subtle">Patient MRN: {{ $prefillMrn }}</p>
+                                @else
+                                    <input type="text" name="patient_mrn" placeholder="Patient MRN" class="form-input text-sm">
+                                @endif
                             @endif
 
-                            <x-button type="submit" variant="primary" class="w-full">Book this slot</x-button>
+                            <x-button type="submit" variant="primary" class="w-full">
+                                {{ $prefillMrn !== '' ? 'Confirm appointment' : 'Book this slot' }}
+                            </x-button>
                         </form>
                     @endforeach
                 </div>
