@@ -34,6 +34,15 @@
     staff_assignments row) so only an actual doctor sees it.
     /my-doctor-profile itself still carries no 'role' gate (see route
     comment) — this remains UX-only, not a new authorization boundary.
+
+    PHASE 6 FINALIZATION: "My Schedule" (doctor + has a doctor profile
+    published — see route/controller: /doctors/{doctor}/schedule binds
+    a DoctorProfile) and "Leave & Blocked Periods" (any active staff
+    assignment, mirrors "Patients") added — see this commit's message
+    for the full rationale. Both are UX-only; the real authorization for
+    everything either page can do remains appt_availability_write_doctor
+    / staff_leave_insert_own / staff_leave_select_own /
+    staff_leave_facility_admin RLS, none of which this file touches.
 --}}
 <aside {{ $attributes->merge(['class' => 'w-64 shrink-0 flex-col border-r border-surface-muted bg-white ' . $class]) }}>
     <div class="flex items-center gap-2 px-5 py-4 border-b border-surface-muted">
@@ -64,6 +73,16 @@
         @if (auth()->user()?->hasActiveRole('doctor'))
             <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
                 My Doctor Profile
+            </x-sidebar-link>
+        @endif
+        @if (auth()->user()?->hasActiveRole('doctor') && auth()->user()?->doctorProfile)
+            <x-sidebar-link href="{{ route('doctors.schedule', ['doctor' => auth()->user()->doctorProfile]) }}" :active="request()->routeIs('doctors.schedule') || request()->routeIs('schedule.*')">
+                My Schedule
+            </x-sidebar-link>
+        @endif
+        @if (auth()->user()?->hasActiveStaffAssignment())
+            <x-sidebar-link href="{{ route('leave.index') }}" :active="request()->routeIs('leave.*')">
+                Leave &amp; Blocked Periods
             </x-sidebar-link>
         @endif
     </nav>
