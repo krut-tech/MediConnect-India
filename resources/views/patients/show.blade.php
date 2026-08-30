@@ -7,7 +7,7 @@
         ]" class="mb-3" />
 
         <x-page-header
-            :title="$patient->user?->full_name ?? 'Unnamed patient'"
+            :title="$patient->user?->full_name ?? 'Name on file missing'"
             :subtitle="$patient->mrn ? 'MRN '.$patient->mrn : null"
         />
     </x-slot>
