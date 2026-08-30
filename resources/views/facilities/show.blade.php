@@ -126,7 +126,7 @@
                                 <x-avatar :name="$assignment->user?->full_name ?? 'Staff'" size="sm" />
                                 <div class="min-w-0">
                                     <p class="text-sm font-medium text-ink truncate">
-                                        {{ $assignment->user?->full_name ?? 'Unnamed' }}
+                                        {{ $assignment->user?->full_name ?? 'Name on file missing' }}
                                     </p>
                                     <p class="text-xs text-ink-subtle">{{ $assignment->role?->label ?? '—' }}</p>
                                 </div>
