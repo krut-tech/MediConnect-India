@@ -10,12 +10,27 @@
             :title="$doctor->user?->full_name ?? 'Unnamed doctor'"
             :subtitle="$doctor->registration_number ? 'Reg. no. '.$doctor->registration_number : null"
         >
-            {{-- Phase 6 WS2: always shown — the booking form itself
-                 handles the "no published schedule yet" case with its own
-                 empty state, so this link never needs to guess in advance
-                 whether a schedule exists. --}}
+            {{-- Phase 6 WS2: always shown for a patient-tier user — the
+                 booking form itself handles the "no published schedule
+                 yet" case with its own empty state, so this link never
+                 needs to guess in advance whether a schedule exists.
+
+                 PHASE 6 CORRECTION: an administrator (hospital_admin or
+                 any platform-tier role — see User::isAdministrator())
+                 must not be steered into the patient self-booking form
+                 from here. A dedicated admin "create appointment for a
+                 patient" screen doesn't exist yet in this codebase (see
+                 commit message / PHASE 6 correction report), so this
+                 links to the existing Appointments list rather than a
+                 route that doesn't exist. --}}
             <x-slot name="actions">
-                <x-button :href="route('doctors.book', $doctor)" variant="primary">Book appointment</x-button>
+                @if (auth()->user()?->isAdministrator())
+                    <x-button :href="route('appointments.index')" variant="secondary">
+                        Manage appointments
+                    </x-button>
+                @else
+                    <x-button :href="route('doctors.book', $doctor)" variant="primary">Book appointment</x-button>
+                @endif
             </x-slot>
         </x-page-header>
     </x-slot>
