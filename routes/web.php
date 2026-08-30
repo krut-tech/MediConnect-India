@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AvailabilityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\FacilityController;
@@ -80,6 +81,17 @@ use Illuminate\Support\Facades\Route;
 | here is unaffected either way since '/appointments/create' and
 | '/doctors/{doctor}' don't share a URI prefix.
 |
+| PHASE 6 CORRECTION also adds /doctors/{doctor}/schedule
+| (index/store/delete — AvailabilityController, spec item 5). Inside
+| the 'role' group: only a signed-in staff member (the doctor
+| themselves, an in-scope hospital_admin, or a super_admin — all of
+| whom hold a staff_assignments row per the `roles` seed data verified
+| this session) should reach the management form at all. The real
+| write authorization is entirely appt_availability_write_doctor RLS
+| (already live, verified this session, unchanged by this commit) —
+| this route gate only keeps a plain patient account from seeing the
+| form; it grants no access RLS wouldn't independently allow.
+|
 */
 
 Route::get('/', function () {
@@ -153,5 +165,13 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         // it stays open to plain patients too, so it cannot move into
         // the 'role' group. Only this entry point requires staff.
         Route::get('/appointments/create', [AppointmentController::class, 'createStart'])->name('appointments.create');
+
+        // PHASE 6 CORRECTION — schedule/availability management
+        // (spec item 5). See AvailabilityController's class docblock
+        // for the live RLS policy that is the actual authorization
+        // boundary; this route gate is UX/reachability only.
+        Route::get('/doctors/{doctor}/schedule', [AvailabilityController::class, 'index'])->name('doctors.schedule');
+        Route::post('/doctors/{doctor}/schedule', [AvailabilityController::class, 'store'])->name('doctors.schedule.store');
+        Route::delete('/schedule/{availability}', [AvailabilityController::class, 'destroy'])->name('schedule.destroy');
     });
 });
