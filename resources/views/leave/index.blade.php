@@ -1,12 +1,12 @@
-<x-layouts.authenticated title="Leave &amp; blocked periods">
+<x-layouts.authenticated title="Leave & blocked periods">
     <x-slot name="header">
         <x-breadcrumb :items="[
             ['label' => 'Dashboard', 'href' => route('dashboard')],
-            ['label' => 'Leave &amp; blocked periods'],
+            ['label' => 'Leave & blocked periods'],
         ]" class="mb-3" />
 
         <x-page-header
-            title="Leave &amp; blocked periods"
+            title="Leave & blocked periods"
             subtitle="Request time off, or (for facility admins) review and decide staff requests. A row here marks a staff member unavailable for a date range — it does not by itself cancel any existing bookings."
         />
     </x-slot>
