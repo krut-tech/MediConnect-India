@@ -70,9 +70,23 @@ class AppointmentController extends Controller
      * Booking form for a specific doctor: pick a published facility,
      * pick a date, see the real currently-available slots for that
      * exact combination.
+     *
+     * PHASE 6 CORRECTION: this is the patient self-booking workflow.
+     * An administrator (hospital_admin / any platform-tier role) is
+     * redirected to Appointments instead of seeing this form, whether
+     * they arrived via the (now-hidden) button, a bookmark, or a typed
+     * URL — see AppointmentController's class docblock and
+     * User::isAdministrator(). This is a workflow redirect, not a new
+     * authorization boundary: store()'s resolvePatientId() already
+     * independently prevents an admin from booking "as themselves".
      */
-    public function create(DoctorProfile $doctor, Request $request, AppointmentAvailabilityService $availability): View
+    public function create(DoctorProfile $doctor, Request $request, AppointmentAvailabilityService $availability): View|RedirectResponse
     {
+        if (Auth::user()?->isAdministrator()) {
+            return redirect()->route('appointments.index')
+                ->with('status', 'Administrators book appointments on behalf of a patient from Appointments, not from a doctor\'s profile.');
+        }
+
         $doctor->loadMissing('user');
 
         $facilities = AppointmentAvailability::query()
