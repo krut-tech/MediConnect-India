@@ -19,6 +19,32 @@
         <x-alert variant="danger" class="mb-4">{{ $message }}</x-alert>
     @enderror
 
+    @if(session('leave_conflict'))
+        @php($conflict = session('leave_conflict'))
+        <x-alert variant="warning" class="mb-4">
+            <p class="font-medium">
+                Approving this leave would affect {{ $conflict['total'] }} already-booked appointment{{ $conflict['total'] === 1 ? '' : 's' }}
+                for {{ $conflict['doctor_name'] ?? 'this doctor' }} ({{ $conflict['leave_start'] }} – {{ $conflict['leave_end'] }}).
+            </p>
+            <ul class="mt-2 list-disc pl-5 text-sm">
+                @foreach($conflict['by_date'] as $date => $count)
+                    <li>{{ $date }} — {{ $count }} patient{{ $count === 1 ? '' : 's' }}</li>
+                @endforeach
+            </ul>
+            <p class="mt-2 text-sm">
+                Approving will not cancel or reschedule these appointments — they will remain on the doctor's
+                calendar unchanged. Resolve them manually (contact the patient, or cancel individually from
+                Appointments) if needed.
+            </p>
+            <form method="POST" action="{{ route('leave.approve', $conflict['leave_id']) }}" class="mt-3">
+                @csrf
+                @method('PATCH')
+                <input type="hidden" name="confirm" value="1">
+                <x-button type="submit" variant="primary">Confirm and approve anyway</x-button>
+            </form>
+        </x-alert>
+    @endif
+
     @if($isAdministrator)
         <x-card title="Requests to review" class="mb-6">
             @php($pending = $leave->where('status', 'requested'))
