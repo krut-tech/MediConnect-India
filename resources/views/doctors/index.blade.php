@@ -34,7 +34,7 @@
                             <td class="flex items-center gap-3 font-medium text-ink">
                                 <x-avatar :name="$doctor->user?->full_name ?? 'Doctor'" size="sm" />
                                 <a href="{{ route('doctors.show', $doctor) }}" class="hover:text-primary-600 hover:underline">
-                                    {{ $doctor->user?->full_name ?? 'Unnamed' }}
+                                    {{ $doctor->user?->full_name ?? 'Name on file missing' }}
                                 </a>
                             </td>
                             <td class="text-ink-muted">{{ $doctor->registration_number ?? '—' }}</td>
@@ -59,7 +59,7 @@
                         <div class="min-w-0">
                             <p class="font-medium text-ink truncate">
                                 <a href="{{ route('doctors.show', $doctor) }}" class="hover:text-primary-600 hover:underline">
-                                    {{ $doctor->user?->full_name ?? 'Unnamed' }}
+                                    {{ $doctor->user?->full_name ?? 'Name on file missing' }}
                                 </a>
                             </p>
                             <p class="mt-0.5 text-sm text-ink-subtle">
