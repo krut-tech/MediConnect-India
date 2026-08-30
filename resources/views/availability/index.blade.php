@@ -39,11 +39,14 @@
                             <td class="text-ink-muted">{{ $row->valid_from?->format('d M Y') ?? '—' }}</td>
                             <td class="text-ink-muted">{{ $row->valid_until?->format('d M Y') ?? 'Ongoing' }}</td>
                             <td class="text-right">
-                                <form method="POST" action="{{ route('schedule.destroy', $row) }}" onsubmit="return confirm('Remove this schedule entry? Existing bookings against it are not affected.');">
-                                    @csrf
-                                    @method('DELETE')
-                                    <x-button type="submit" variant="danger">Remove</x-button>
-                                </form>
+                                <div class="flex items-center justify-end gap-2">
+                                    <x-button href="{{ route('schedule.edit', $row) }}" variant="secondary">Edit</x-button>
+                                    <form method="POST" action="{{ route('schedule.destroy', $row) }}" onsubmit="return confirm('Remove this schedule entry? Existing bookings against it are not affected.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <x-button type="submit" variant="danger">Remove</x-button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     @endforeach
@@ -61,11 +64,14 @@
                         <p class="mt-0.5 text-sm text-ink-subtle">
                             {{ $row->valid_from?->format('d M Y') ?? '—' }} – {{ $row->valid_until?->format('d M Y') ?? 'Ongoing' }}
                         </p>
-                        <form method="POST" action="{{ route('schedule.destroy', $row) }}" class="mt-2" onsubmit="return confirm('Remove this schedule entry? Existing bookings against it are not affected.');">
-                            @csrf
-                            @method('DELETE')
-                            <x-button type="submit" variant="danger" class="w-full">Remove</x-button>
-                        </form>
+                        <div class="mt-2 flex gap-2">
+                            <x-button href="{{ route('schedule.edit', $row) }}" variant="secondary" class="w-full">Edit</x-button>
+                            <form method="POST" action="{{ route('schedule.destroy', $row) }}" class="w-full" onsubmit="return confirm('Remove this schedule entry? Existing bookings against it are not affected.');">
+                                @csrf
+                                @method('DELETE')
+                                <x-button type="submit" variant="danger" class="w-full">Remove</x-button>
+                            </form>
+                        </div>
                     </div>
                 @endforeach
             </div>
