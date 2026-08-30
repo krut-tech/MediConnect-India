@@ -3,15 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreLeaveRequest;
+use App\Models\AppointmentBooking;
 use App\Models\StaffLeave;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Phase 6 finalization — leave / blocked-period management (items 2+3).
+ * Phase 6 finalization — leave / blocked-period management (items 2+3),
+ * extended (Phase 6 correction) with affected-appointment conflict
+ * detection on approval (items 5-6 of that spec).
  *
  * See the commit message for why this single controller/table covers
  * both concerns rather than duplicating either. A row in
@@ -23,14 +28,13 @@ use Illuminate\Support\Facades\Auth;
  * who is doing the inserting differs, and that is exactly what RLS
  * already governs (see StaffLeave's own docblock).
  *
- * This does NOT touch public.appt_availability or
- * public.appt_bookings — a staff_leave row does not itself block
- * appt_available_slots() computation or cancel existing bookings.
- * Cross-referencing leave against live slot computation (so a blocked
- * period actually prevents new bookings during it) is flagged as a
- * deferred item in the Phase 6 finalization report, same as this
- * app's established practice of stating gaps rather than silently
- * building around them.
+ * This still does NOT touch public.appt_availability directly, and
+ * approving leave still does not cancel, reschedule, or otherwise
+ * write to any appt_bookings row — see approve()'s docblock below for
+ * exactly what conflict detection does and does not do, and why.
+ * Cross-referencing leave against live appt_available_slots() slot
+ * computation (so a blocked period also prevents NEW bookings during
+ * it) remains a separately-scoped, not-yet-built item.
  */
 class LeaveController extends Controller
 {
@@ -103,26 +107,98 @@ class LeaveController extends Controller
     }
 
     /**
-     * Approves one pending request. Only reachable in practice for a
-     * caller staff_leave_facility_admin RLS actually authorizes (an
-     * in-scope hospital_admin, or a super_admin) — anyone else's UPDATE
-     * matches 0 rows, reported as an ordinary error below, never a raw
-     * 500. Uses the affected-row-count pattern, not Eloquent's boolean
-     * update() return value, for the same reason as
-     * AvailabilityController::update()/destroy().
+     * Approves one pending request — but first checks whether doing so
+     * would affect any already-booked appointment for that doctor.
+     *
+     * Behavior:
+     *   1. Compute affectedAppointments() for this leave's doctor/date
+     *      range (active bookings only — 'booked'/'confirmed'; a
+     *      cancelled/completed/no_show booking is never "affected").
+     *   2. If none exist, or the caller already passed ?confirm=1,
+     *      approve exactly as before (updateStatus()) — nothing about
+     *      the no-conflict path changed.
+     *   3. If any exist and this is not a confirmed request, the
+     *      approval is NOT applied. Instead the caller is sent back to
+     *      /leave with a conflict summary (total count + per-date
+     *      counts) flashed to the session, and the view offers a
+     *      "confirm and approve anyway" action (the same route, with
+     *      ?confirm=1) — i.e. "leave requested -> conflict detected ->
+     *      review affected appointments -> approve", per the spec.
+     *
+     * Deliberately NOT done here, and why: automatically cancelling,
+     * rescheduling, or relabeling the affected appt_bookings rows.
+     * appt_bookings has no cancelled_by/cancellation_reason/resolution-
+     * state column today (confirmed live before writing this), and
+     * inventing one of those, or silently moving a patient's booking to
+     * another doctor/time, is exactly the kind of unsafe unapproved
+     * schema/behavior change the standing project rules call out.
+     * Confirmed approval leaves every affected appointment exactly as
+     * it was — visible, unmodified, still on the doctor's calendar —
+     * so staff can resolve it manually (call the patient, cancel via
+     * the existing cancel() action, etc.) until a real
+     * reschedule/notify workflow is separately approved and built.
      */
-    public function approve(StaffLeave $leave): RedirectResponse
+    public function approve(StaffLeave $leave, Request $request): RedirectResponse
     {
+        if (! $request->boolean('confirm')) {
+            $affected = $this->affectedAppointments($leave);
+
+            if ($affected->isNotEmpty()) {
+                return redirect()->route('leave.index')->with('leave_conflict', [
+                    'leave_id' => $leave->getKey(),
+                    'doctor_name' => $leave->staffAssignment?->user?->full_name,
+                    'leave_start' => $leave->leave_start?->format('d M Y'),
+                    'leave_end' => $leave->leave_end?->format('d M Y'),
+                    'total' => $affected->count(),
+                    'by_date' => $affected
+                        ->groupBy(fn (AppointmentBooking $booking) => $booking->scheduled_at->format('d M Y'))
+                        ->map->count(),
+                ]);
+            }
+        }
+
         return $this->updateStatus($leave, 'approved');
     }
 
     /**
-     * Rejects one pending request. Same authorization/affected-row-count
+     * Rejects one pending request. No conflict check needed — rejecting
+     * leaves every appointment (and the doctor's normal availability)
+     * completely unaffected. Same authorization/affected-row-count
      * discipline as approve() above.
      */
     public function reject(StaffLeave $leave): RedirectResponse
     {
         return $this->updateStatus($leave, 'rejected');
+    }
+
+    /**
+     * Active (booked/confirmed) appointments for this leave's doctor
+     * that fall inside the leave's date range — i.e. exactly the set
+     * the spec calls "affected appointments." Read-only; runs under the
+     * same RLS context (supabase.rls) as every other query in this
+     * controller, so it can only ever see rows the signed-in caller
+     * (an in-scope facility_admin or super_admin, per
+     * staff_leave_facility_admin) is already authorized to see via
+     * appt_bookings_select_own/_doctor/_facility_staff.
+     *
+     * @return Collection<int, AppointmentBooking>
+     */
+    private function affectedAppointments(StaffLeave $leave): Collection
+    {
+        $leave->loadMissing('staffAssignment');
+        $doctorUserId = $leave->staffAssignment?->user_id;
+
+        if (! $doctorUserId) {
+            return new Collection();
+        }
+
+        return AppointmentBooking::query()
+            ->where('doctor_user_id', $doctorUserId)
+            ->whereIn('status', ['booked', 'confirmed'])
+            ->whereDate('scheduled_at', '>=', $leave->leave_start)
+            ->whereDate('scheduled_at', '<=', $leave->leave_end)
+            ->orderBy('scheduled_at')
+            ->get();
     }
 
     private function updateStatus(StaffLeave $leave, string $status): RedirectResponse
