@@ -1,4 +1,4 @@
-<?php
+&lt;?php
 
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
@@ -6,6 +6,7 @@ use App\Http\Controllers\AvailabilityController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\FacilityController;
+use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PatientController;
 use Illuminate\Support\Facades\Route;
 
@@ -20,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 | sit behind 'guest' so an already-authenticated person is redirected to
 | their dashboard instead of seeing the form again.
 |
-| Registration creates ONLY auth.users -> public.users (via the
+| Registration creates ONLY auth.users -&gt; public.users (via the
 | already-verified handle_new_auth_user trigger). No role/staff/patient
 | linkage happens here — that is later, separately approved work.
 |
@@ -92,31 +93,47 @@ use Illuminate\Support\Facades\Route;
 | this route gate only keeps a plain patient account from seeing the
 | form; it grants no access RLS wouldn't independently allow.
 |
+| PHASE 6 FINALIZATION adds /schedule/{availability}/edit (GET) and
+| /schedule/{availability} (PATCH) — AvailabilityController::edit()/
+| update(), item 1 of the finalization list. Same tier/group as the
+| rest of schedule management above; appt_availability_write_doctor RLS
+| is unchanged and remains the sole write authorization.
+|
+| PHASE 6 FINALIZATION also adds /leave (index/store/approve/reject —
+| LeaveController, items 2+3: leave AND blocked-period management, one
+| table/controller — see LeaveController's own docblock for why).
+| Same 'role' tier as /doctors/{doctor}/schedule: only a signed-in
+| staff member reaches the form. staff_leave_insert_own/_select_own
+| (own requests) and staff_leave_facility_admin (facility-scoped
+| approve/reject, ALL command) RLS — already live, unchanged by this
+| commit — are the actual authorization boundary; this route gate only
+| keeps a plain patient account from seeing the form.
+|
 */
 
 Route::get('/', function () {
     return view('welcome');
-})->name('home');
+})-&gt;name('home');
 
-Route::middleware(['guest'])->group(function () {
-    Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::middleware(['guest'])-&gt;group(function () {
+    Route::get('/login', [AuthController::class, 'showLogin'])-&gt;name('login');
     Route::post('/login', [AuthController::class, 'login']);
-    Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+    Route::get('/register', [AuthController::class, 'showRegister'])-&gt;name('register');
     Route::post('/register', [AuthController::class, 'register']);
 });
 
-Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::middleware(['supabase.auth', 'supabase.rls'])-&gt;group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])-&gt;name('logout');
 
-    Route::get('/dashboard', DashboardController::class)->name('dashboard');
-    Route::get('/facilities', [FacilityController::class, 'index'])->name('facilities.index');
-    Route::get('/facilities/{facility}', [FacilityController::class, 'show'])->name('facilities.show');
+    Route::get('/dashboard', DashboardController::class)-&gt;name('dashboard');
+    Route::get('/facilities', [FacilityController::class, 'index'])-&gt;name('facilities.index');
+    Route::get('/facilities/{facility}', [FacilityController::class, 'show'])-&gt;name('facilities.show');
 
     // Public doctor directory + detail (Phase 5.2). Non-PII beyond what
     // a doctor chooses to publish, and already public per
     // doctor_profiles_select_public RLS — same open tier as /facilities.
-    Route::get('/doctors', [DoctorController::class, 'index'])->name('doctors.index');
-    Route::get('/doctors/{doctor}', [DoctorController::class, 'show'])->name('doctors.show');
+    Route::get('/doctors', [DoctorController::class, 'index'])-&gt;name('doctors.index');
+    Route::get('/doctors/{doctor}', [DoctorController::class, 'show'])-&gt;name('doctors.show');
 
     // Patient's own profile. No 'role' gate — a plain patient account
     // has no staff_assignments row and would be incorrectly 403'd by
@@ -125,16 +142,16 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     // action in PatientController accepts a patient id from the
     // request/route, and patients_select_own/patients_update_own RLS
     // independently enforce "own record only" regardless.
-    Route::get('/my-profile', [PatientController::class, 'myProfile'])->name('patients.my-profile');
-    Route::patch('/my-profile', [PatientController::class, 'updateMyProfile'])->name('patients.my-profile.update');
+    Route::get('/my-profile', [PatientController::class, 'myProfile'])-&gt;name('patients.my-profile');
+    Route::patch('/my-profile', [PatientController::class, 'updateMyProfile'])-&gt;name('patients.my-profile.update');
 
     // Signed-in user's own doctor profile (Phase 5.2). No 'role' gate —
     // same rationale as /my-profile above. DoctorController never
     // accepts a doctor/profile id from the request/route, and
     // doctor_profiles_write_own RLS independently enforces "own record
     // only" for both the create and update paths.
-    Route::get('/my-doctor-profile', [DoctorController::class, 'myProfile'])->name('doctors.my-profile');
-    Route::patch('/my-doctor-profile', [DoctorController::class, 'updateMyProfile'])->name('doctors.my-profile.update');
+    Route::get('/my-doctor-profile', [DoctorController::class, 'myProfile'])-&gt;name('doctors.my-profile');
+    Route::patch('/my-doctor-profile', [DoctorController::class, 'updateMyProfile'])-&gt;name('doctors.my-profile.update');
 
     // Appointment Engine foundation (Phase 6 Workstream 2). No 'role'
     // gate on any of these — a plain patient booking for themselves has
@@ -143,20 +160,20 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     // input; appt_bookings_select_own/_doctor/_facility_staff and
     // appt_bookings_insert RLS independently enforce every actual
     // access/write boundary regardless of what this file gates.
-    Route::get('/doctors/{doctor}/book', [AppointmentController::class, 'create'])->name('doctors.book');
-    Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
-    Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
-    Route::patch('/appointments/{booking}/cancel', [AppointmentController::class, 'cancel'])->name('appointments.cancel');
+    Route::get('/doctors/{doctor}/book', [AppointmentController::class, 'create'])-&gt;name('doctors.book');
+    Route::get('/appointments', [AppointmentController::class, 'index'])-&gt;name('appointments.index');
+    Route::post('/appointments', [AppointmentController::class, 'store'])-&gt;name('appointments.store');
+    Route::patch('/appointments/{booking}/cancel', [AppointmentController::class, 'cancel'])-&gt;name('appointments.cancel');
 
     // Any authenticated staff member (any active staff_assignments row,
     // any role) — not open to plain patient-role accounts or
     // no-role accounts. See app/Http/Middleware/EnsureUserHasRole.php.
     // Runs after 'supabase.rls', so its own staff_assignments query is
     // RLS-context-aware.
-    Route::middleware(['role'])->group(function () {
-        Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
-        Route::get('/patients/{patient}', [PatientController::class, 'show'])->name('patients.show');
-        Route::patch('/patients/{patient}', [PatientController::class, 'update'])->name('patients.update');
+    Route::middleware(['role'])-&gt;group(function () {
+        Route::get('/patients', [PatientController::class, 'index'])-&gt;name('patients.index');
+        Route::get('/patients/{patient}', [PatientController::class, 'show'])-&gt;name('patients.show');
+        Route::patch('/patients/{patient}', [PatientController::class, 'update'])-&gt;name('patients.update');
 
         // PHASE 6 CORRECTION — the staff/admin "Create Appointment"
         // entry point (pick a patient by MRN + a doctor, then hand off
@@ -164,14 +181,27 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         // above (outside this group) is /doctors/{doctor}/book itself —
         // it stays open to plain patients too, so it cannot move into
         // the 'role' group. Only this entry point requires staff.
-        Route::get('/appointments/create', [AppointmentController::class, 'createStart'])->name('appointments.create');
+        Route::get('/appointments/create', [AppointmentController::class, 'createStart'])-&gt;name('appointments.create');
 
         // PHASE 6 CORRECTION — schedule/availability management
         // (spec item 5). See AvailabilityController's class docblock
         // for the live RLS policy that is the actual authorization
         // boundary; this route gate is UX/reachability only.
-        Route::get('/doctors/{doctor}/schedule', [AvailabilityController::class, 'index'])->name('doctors.schedule');
-        Route::post('/doctors/{doctor}/schedule', [AvailabilityController::class, 'store'])->name('doctors.schedule.store');
-        Route::delete('/schedule/{availability}', [AvailabilityController::class, 'destroy'])->name('schedule.destroy');
+        Route::get('/doctors/{doctor}/schedule', [AvailabilityController::class, 'index'])-&gt;name('doctors.schedule');
+        Route::post('/doctors/{doctor}/schedule', [AvailabilityController::class, 'store'])-&gt;name('doctors.schedule.store');
+        Route::get('/schedule/{availability}/edit', [AvailabilityController::class, 'edit'])-&gt;name('schedule.edit');
+        Route::patch('/schedule/{availability}', [AvailabilityController::class, 'update'])-&gt;name('schedule.update');
+        Route::delete('/schedule/{availability}', [AvailabilityController::class, 'destroy'])-&gt;name('schedule.destroy');
+
+        // PHASE 6 FINALIZATION — leave / blocked-period management
+        // (items 2+3). One controller, one existing table
+        // (public.staff_leave, already RLS-enabled — verified live,
+        // unchanged by this commit) covers both concerns — see
+        // LeaveController's class docblock for why. Same tier as
+        // schedule management above.
+        Route::get('/leave', [LeaveController::class, 'index'])-&gt;name('leave.index');
+        Route::post('/leave', [LeaveController::class, 'store'])-&gt;name('leave.store');
+        Route::patch('/leave/{leave}/approve', [LeaveController::class, 'approve'])-&gt;name('leave.approve');
+        Route::patch('/leave/{leave}/reject', [LeaveController::class, 'reject'])-&gt;name('leave.reject');
     });
 });
