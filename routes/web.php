@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DoctorController;
@@ -57,8 +58,17 @@ use Illuminate\Support\Facades\Route;
 | only"). Neither adds any new middleware or changes existing route
 | behavior.
 |
-| Appointment/Clinical/Lab/Pharmacy/Billing/Admin routes remain out of
-| scope for this phase.
+| Phase 6 Workstream 2 adds /doctors/{doctor}/book (real, dynamic
+| availability for one doctor — no 'role' gate, same tier as
+| /my-profile: a plain patient booking for themselves has no
+| staff_assignments row) and /appointments (index/store/cancel — own
+| bookings for a patient, in-scope facility bookings for staff, per
+| appt_bookings_select_own/_doctor/_facility_staff RLS; the store()
+| INSERT path is likewise governed by appt_bookings_insert RLS, not by
+| any route-level gate). Double-booking safety is the live
+| appt_bookings_no_double_booking DB exclusion constraint, not anything
+| in this route file. Clinical/Lab/Pharmacy/Billing/Admissions routes
+| remain out of scope for this phase.
 |
 */
 
@@ -103,6 +113,18 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
     // only" for both the create and update paths.
     Route::get('/my-doctor-profile', [DoctorController::class, 'myProfile'])->name('doctors.my-profile');
     Route::patch('/my-doctor-profile', [DoctorController::class, 'updateMyProfile'])->name('doctors.my-profile.update');
+
+    // Appointment Engine foundation (Phase 6 Workstream 2). No 'role'
+    // gate on any of these — a plain patient booking for themselves has
+    // no staff_assignments row, same rationale as /my-profile above.
+    // AppointmentController never accepts a patient_id from request
+    // input; appt_bookings_select_own/_doctor/_facility_staff and
+    // appt_bookings_insert RLS independently enforce every actual
+    // access/write boundary regardless of what this file gates.
+    Route::get('/doctors/{doctor}/book', [AppointmentController::class, 'create'])->name('doctors.book');
+    Route::get('/appointments', [AppointmentController::class, 'index'])->name('appointments.index');
+    Route::post('/appointments', [AppointmentController::class, 'store'])->name('appointments.store');
+    Route::patch('/appointments/{booking}/cancel', [AppointmentController::class, 'cancel'])->name('appointments.cancel');
 
     // Any authenticated staff member (any active staff_assignments row,
     // any role) — not open to plain patient-role accounts or
