@@ -33,6 +33,9 @@
             tier as Facilities); "My Doctor Profile" under the same
             hasActiveStaffAssignment() condition as "Patients" — see
             sidebar.blade.php's docblock for the full rationale.
+
+            Phase 6 WS2: "Appointments" unconditional, mirrors
+            sidebar.blade.php — see its docblock for the full rationale.
         --}}
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
@@ -43,6 +46,9 @@
             </x-sidebar-link>
             <x-sidebar-link href="{{ route('doctors.index') }}" :active="request()->routeIs('doctors.index') || request()->routeIs('doctors.show')">
                 Doctors
+            </x-sidebar-link>
+            <x-sidebar-link href="{{ route('appointments.index') }}" :active="request()->routeIs('appointments.*') || request()->routeIs('doctors.book')">
+                Appointments
             </x-sidebar-link>
             @if (auth()->user()?->hasActiveStaffAssignment())
                 <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">

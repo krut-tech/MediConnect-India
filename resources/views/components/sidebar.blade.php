@@ -19,6 +19,13 @@
     hasActiveStaffAssignment() condition as "Patients" — a UX choice
     (only staff members are plausible doctors), not an authorization
     change; /my-doctor-profile itself carries no 'role' gate.
+
+    Phase 6 WS2: "Appointments" is unconditional, same tier as
+    Dashboard/Facilities/Doctors — both a plain patient (booking for
+    themselves) and staff (booking/managing within their facility scope)
+    have a real, non-empty use for /appointments; /appointments itself
+    carries no 'role' gate either. This is UX-only — appt_bookings_
+    select_own/_doctor/_facility_staff RLS decides what actually shows.
 --}}
 <aside {{ $attributes->merge(['class' => 'w-64 shrink-0 flex-col border-r border-surface-muted bg-white ' . $class]) }}>
     <div class="flex items-center gap-2 px-5 py-4 border-b border-surface-muted">
@@ -37,6 +44,9 @@
         </x-sidebar-link>
         <x-sidebar-link href="{{ route('doctors.index') }}" :active="request()->routeIs('doctors.index') || request()->routeIs('doctors.show')">
             Doctors
+        </x-sidebar-link>
+        <x-sidebar-link href="{{ route('appointments.index') }}" :active="request()->routeIs('appointments.*') || request()->routeIs('doctors.book')">
+            Appointments
         </x-sidebar-link>
         @if (auth()->user()?->hasActiveStaffAssignment())
             <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">

@@ -9,7 +9,15 @@
         <x-page-header
             :title="$doctor->user?->full_name ?? 'Unnamed doctor'"
             :subtitle="$doctor->registration_number ? 'Reg. no. '.$doctor->registration_number : null"
-        />
+        >
+            {{-- Phase 6 WS2: always shown — the booking form itself
+                 handles the "no published schedule yet" case with its own
+                 empty state, so this link never needs to guess in advance
+                 whether a schedule exists. --}}
+            <x-slot name="actions">
+                <x-button :href="route('doctors.book', $doctor)" variant="primary">Book appointment</x-button>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="grid gap-6 lg:grid-cols-3">
