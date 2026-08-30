@@ -70,6 +70,16 @@ use Illuminate\Support\Facades\Route;
 | in this route file. Clinical/Lab/Pharmacy/Billing/Admissions routes
 | remain out of scope for this phase.
 |
+| PHASE 6 CORRECTION adds /appointments/create (staff-facing "who is
+| this appointment for, and with which doctor" step 1 — see
+| AppointmentController::createStart()'s docblock). Placed inside the
+| existing 'role' group, same tier as /patients: only an active staff
+| assignment should be booking on behalf of someone else. It hands off
+| to the existing /doctors/{doctor}/book, so it must be declared before
+| that route only in the sense of readability — Laravel route matching
+| here is unaffected either way since '/appointments/create' and
+| '/doctors/{doctor}' don't share a URI prefix.
+|
 */
 
 Route::get('/', function () {
@@ -135,5 +145,13 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         Route::get('/patients', [PatientController::class, 'index'])->name('patients.index');
         Route::get('/patients/{patient}', [PatientController::class, 'show'])->name('patients.show');
         Route::patch('/patients/{patient}', [PatientController::class, 'update'])->name('patients.update');
+
+        // PHASE 6 CORRECTION — the staff/admin "Create Appointment"
+        // entry point (pick a patient by MRN + a doctor, then hand off
+        // to the existing /doctors/{doctor}/book). Deliberately declared
+        // above (outside this group) is /doctors/{doctor}/book itself —
+        // it stays open to plain patients too, so it cannot move into
+        // the 'role' group. Only this entry point requires staff.
+        Route::get('/appointments/create', [AppointmentController::class, 'createStart'])->name('appointments.create');
     });
 });
