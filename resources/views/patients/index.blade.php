@@ -11,7 +11,7 @@
             subtitle="Registered patients visible under your current access scope."
         >
             <x-slot name="actions">
-                <x-button variant="secondary" disabled title="Registration not wired yet — see prototype notice below">
+                <x-button variant="secondary" disabled title="Registration not wired yet — see notice below">
                     Register patient
                 </x-button>
             </x-slot>
@@ -19,7 +19,7 @@
     </x-slot>
 
     <x-prototype-notice
-        message="Patient registration and profile editing are not connected yet — the Supabase write path for this table (Decision W4) hasn't been built. This list is a real, live read of the patients table under RLS."
+        message="Patient registration (creating a new patients row) is not connected yet — patients has no INSERT policy, and this project has no deployed Edge Function for it, as of this phase. Viewing and editing existing patients (this list, patient detail, My Profile) IS live and RLS-scoped — that part is no longer a prototype."
         class="mb-4"
     />
 
@@ -46,7 +46,7 @@
                             <td class="flex items-center gap-3 font-medium text-ink">
                                 <x-avatar :name="$patient->user?->full_name ?? 'Patient'" size="sm" />
                                 <a href="{{ route('patients.show', $patient) }}" class="hover:text-primary-600 hover:underline">
-                                    {{ $patient->user?->full_name ?? 'Unnamed' }}
+                                    {{ $patient->user?->full_name ?? 'Name on file missing' }}
                                 </a>
                             </td>
                             <td class="text-ink-muted">{{ $patient->mrn ?? '—' }}</td>
@@ -67,7 +67,7 @@
                         <div class="min-w-0">
                             <p class="font-medium text-ink truncate">
                                 <a href="{{ route('patients.show', $patient) }}" class="hover:text-primary-600 hover:underline">
-                                    {{ $patient->user?->full_name ?? 'Unnamed' }}
+                                    {{ $patient->user?->full_name ?? 'Name on file missing' }}
                                 </a>
                             </p>
                             <p class="mt-0.5 text-sm text-ink-subtle">
