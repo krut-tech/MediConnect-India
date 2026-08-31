@@ -8,6 +8,7 @@ use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\FacilityController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\StaffController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -109,6 +110,25 @@ use Illuminate\Support\Facades\Route;
 | commit — are the actual authorization boundary; this route gate only
 | keeps a plain patient account from seeing the form.
 |
+| PHASE 6 CORRECTION (2026-08-31 continuation) adds:
+|   - /leave/{leave}/edit (GET), /leave/{leave} (PATCH),
+|     /leave/{leave}/withdraw (PATCH) — LeaveController::edit()/
+|     update()/withdraw(), item 9 (self-service edit/withdraw). Same
+|     'role' tier as the rest of leave management. Real authorization is
+|     the new, additive staff_leave_update_own RLS policy (own
+|     assignment, status still 'requested' — verified live before this
+|     route/controller code was written); this route gate is UX/
+|     reachability only, same discipline as every other route in this
+|     group.
+|   - /staff (index/create/store — StaffController, items 2, 5, 6: the
+|     staff creation-flow gap, staff-directory search, and
+|     facility-scoped navigation). Same 'role' tier: only a signed-in
+|     staff member reaches these. Real authorization is entirely the
+|     already-live staff_assignments_select_own/_select_facility_admin/
+|     _insert RLS policies (unchanged by this commit) — see
+|     StaffController's own docblock for why this closes a real gap
+|     (RLS already permitted this; no route/controller ever exposed it).
+|
 */
 
 Route::get('/', function () {
@@ -203,5 +223,23 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         Route::post('/leave', [LeaveController::class, 'store'])->name('leave.store');
         Route::patch('/leave/{leave}/approve', [LeaveController::class, 'approve'])->name('leave.approve');
         Route::patch('/leave/{leave}/reject', [LeaveController::class, 'reject'])->name('leave.reject');
+
+        // PHASE 6 CORRECTION (2026-08-31 continuation) — leave
+        // self-service edit/withdraw (item 9). Real authorization is
+        // the new staff_leave_update_own RLS policy (own assignment,
+        // status still 'requested' — verified live before this
+        // route/controller code was written).
+        Route::get('/leave/{leave}/edit', [LeaveController::class, 'edit'])->name('leave.edit');
+        Route::patch('/leave/{leave}', [LeaveController::class, 'update'])->name('leave.update');
+        Route::patch('/leave/{leave}/withdraw', [LeaveController::class, 'withdraw'])->name('leave.withdraw');
+
+        // PHASE 6 CORRECTION (2026-08-31 continuation) — staff
+        // directory + creation (items 2, 5, 6). Real authorization is
+        // entirely the already-live staff_assignments_select_own/
+        // _select_facility_admin/_insert RLS policies (unchanged by
+        // this commit) — see StaffController's own docblock.
+        Route::get('/staff', [StaffController::class, 'index'])->name('staff.index');
+        Route::get('/staff/create', [StaffController::class, 'create'])->name('staff.create');
+        Route::post('/staff', [StaffController::class, 'store'])->name('staff.store');
     });
 });
