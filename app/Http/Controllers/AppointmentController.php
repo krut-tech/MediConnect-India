@@ -74,6 +74,18 @@ use Throwable;
  * still decides whether the UPDATE affects a row at all, and
  * completed/no_show/already-cancelled bookings still cannot be
  * re-cancelled.
+ *
+ * ============================================================
+ * PHASE 6 CORRECTION — SEARCH/FILTER (item 11, 2026-08-31)
+ * ============================================================
+ * index() now accepts optional query params (q, status, date_from,
+ * date_to) and applies them as extra WHERE clauses ON TOP OF the same
+ * RLS-scoped base query as before — no filter here ever widens which
+ * rows are visible; RLS still decides that first. `q` matches doctor
+ * name, patient name, or patient MRN (ilike, case-insensitive) so a
+ * front-desk user can find a booking by any of the three identifiers
+ * the spec calls out. Uses the existing paginate(15) — appendable via
+ * ->appends() so pagination links preserve the active filters.
  */
 class AppointmentController extends Controller
 {
@@ -83,17 +95,44 @@ class AppointmentController extends Controller
      * Bookings visible to the signed-in user. No manual facility/
      * patient/doctor where-clause is added — appt_bookings_select_own /
      * _doctor / _facility_staff RLS is what actually decides which rows
-     * come back, exactly like every other index() in this app.
+     * come back, exactly like every other index() in this app. Search/
+     * filter (see class docblock) is applied only within whatever RLS
+     * already returned.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
+        $search = trim((string) $request->query('q', ''));
+        $status = trim((string) $request->query('status', ''));
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+
+        $validStatuses = ['booked', 'checked_in', 'completed', 'cancelled', 'no_show'];
+
         $bookings = AppointmentBooking::query()
             ->with(['patient.user', 'doctorUser', 'facility'])
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($inner) use ($search) {
+                    $inner->whereHas('doctorUser', fn ($q) => $q->where('full_name', 'ilike', "%{$search}%"))
+                        ->orWhereHas('patient.user', fn ($q) => $q->where('full_name', 'ilike', "%{$search}%"))
+                        ->orWhereHas('patient', fn ($q) => $q->where('mrn', 'ilike', "%{$search}%"));
+                });
+            })
+            ->when(in_array($status, $validStatuses, true), fn ($query) => $query->where('status', $status))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('scheduled_at', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('scheduled_at', '<=', $dateTo))
             ->orderBy('scheduled_at', 'desc')
-            ->paginate(15);
+            ->paginate(15)
+            ->appends($request->query());
 
         return view('appointments.index', [
             'bookings' => $bookings,
+            'filters' => [
+                'q' => $search,
+                'status' => $status,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ],
+            'statusOptions' => $validStatuses,
         ]);
     }
 
