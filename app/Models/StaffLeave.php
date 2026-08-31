@@ -7,17 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Maps to the existing public.staff_leave table (verified live via
- * list_tables before writing this model -- not a new table, no new
- * column/index/constraint added here).
+ * list_tables before writing this model -- not a new table).
  *
  * This is the single table backing BOTH "leave management" and
  * "blocked-period management" -- see LeaveController's class docblock
  * for why those two concerns share one table/controller rather than
  * duplicating either. A row here means "this staff member is
- * unavailable for the given date range," regardless of whether the
- * reason is personal leave or an admin-imposed block; the table itself
- * (leave_start/leave_end/status) does not distinguish reason, and this
- * app does not invent a reason taxonomy the schema doesn't have.
+ * unavailable for the given date range."
  *
  * RLS (verified live via pg_policies, unchanged by this commit):
  *   - staff_leave_insert_own (INSERT): staff_assignment_id must belong
@@ -37,7 +33,18 @@ use Illuminate\Database\Eloquent\Model;
  * once submitted; only a facility_admin (or super_admin, per
  * is_super_admin() elsewhere in this schema) can change its status.
  * This is a real, live authorization boundary, not a gap this model
- * works around.
+ * works around. (Self-service edit/withdraw is a separately-scoped,
+ * not-yet-built item -- see MIGRATION_PROGRESS.md deferred list.)
+ *
+ * ============================================================
+ * AUDIT FIELDS (Phase 6 correction, additive columns)
+ * ============================================================
+ * requested_by / leave_type / reason capture who asked and why;
+ * reviewed_by / reviewed_at / decision_reason capture who
+ * approved/rejected it and when, and an optional reason for that
+ * decision (e.g. a rejection reason). created_at/updated_at were also
+ * added (this table had no timestamps before); $timestamps is now
+ * true so Eloquent maintains them automatically on every write.
  */
 class StaffLeave extends Model
 {
@@ -49,13 +56,17 @@ class StaffLeave extends Model
 
     protected $keyType = 'string';
 
-    public $timestamps = false;
-
     protected $fillable = [
         'staff_assignment_id',
         'leave_start',
         'leave_end',
         'status',
+        'requested_by',
+        'leave_type',
+        'reason',
+        'reviewed_by',
+        'reviewed_at',
+        'decision_reason',
     ];
 
     protected function casts(): array
@@ -63,11 +74,24 @@ class StaffLeave extends Model
         return [
             'leave_start' => 'date',
             'leave_end' => 'date',
+            'reviewed_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
         ];
     }
 
     public function staffAssignment()
     {
         return $this->belongsTo(StaffAssignment::class, 'staff_assignment_id');
+    }
+
+    public function requestedByUser()
+    {
+        return $this->belongsTo(User::class, 'requested_by');
+    }
+
+    public function reviewedByUser()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
     }
 }
