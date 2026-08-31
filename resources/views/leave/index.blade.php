@@ -32,9 +32,9 @@
                 @endforeach
             </ul>
             <p class="mt-2 text-sm">
-                Approving will not cancel or reschedule these appointments — they will remain on the doctor's
-                calendar unchanged. Resolve them manually (contact the patient, or cancel individually from
-                Appointments) if needed.
+                Approving will mark these appointments "Needs follow-up" (visible on the Appointments page) so
+                nothing is silently lost — it will not cancel or reschedule them automatically. Resolve them
+                manually (contact the patient, or cancel individually from Appointments) once approved.
             </p>
             <form method="POST" action="{{ route('leave.approve', $conflict['leave_id']) }}" class="mt-3">
                 @csrf
@@ -55,13 +55,15 @@
                 />
             @else
                 <div class="hidden sm:block">
-                    <x-table :headings="['Staff member', 'Facility', 'From', 'To', '']">
+                    <x-table :headings="['Staff member', 'Facility', 'Type', 'From', 'To', 'Reason', '']">
                         @foreach($pending as $row)
                             <tr>
                                 <td class="font-medium text-ink">{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }} <span class="text-ink-subtle">({{ $row->staffAssignment?->role?->label ?? '—' }})</span></td>
                                 <td class="text-ink-muted">{{ $row->staffAssignment?->facility?->name ?? '—' }}</td>
+                                <td class="text-ink-muted">{{ $row->leave_type ?? '—' }}</td>
                                 <td class="text-ink-muted">{{ $row->leave_start?->format('d M Y') }}</td>
                                 <td class="text-ink-muted">{{ $row->leave_end?->format('d M Y') }}</td>
+                                <td class="max-w-[16rem] truncate text-ink-muted" title="{{ $row->reason }}">{{ $row->reason ?? '—' }}</td>
                                 <td class="text-right">
                                     <div class="flex items-center justify-end gap-2">
                                         <form method="POST" action="{{ route('leave.approve', $row) }}">
@@ -86,7 +88,10 @@
                         <div class="rounded-lg border border-surface-muted p-3">
                             <p class="font-medium text-ink">{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }}</p>
                             <p class="mt-0.5 text-sm text-ink-subtle">{{ $row->staffAssignment?->role?->label ?? '—' }} · {{ $row->staffAssignment?->facility?->name ?? '—' }}</p>
-                            <p class="mt-0.5 text-sm text-ink-subtle">{{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</p>
+                            <p class="mt-0.5 text-sm text-ink-subtle">{{ $row->leave_type ?? 'Type not specified' }} · {{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</p>
+                            @if($row->reason)
+                                <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->reason }}"</p>
+                            @endif
                             <div class="mt-2 flex gap-2">
                                 <form method="POST" action="{{ route('leave.approve', $row) }}" class="w-full">
                                     @csrf
@@ -115,9 +120,10 @@
             />
         @else
             <div class="hidden sm:block">
-                <x-table :headings="['From', 'To', 'Status']">
+                <x-table :headings="['Type', 'From', 'To', 'Status', 'Decided by', 'Decision note']">
                     @foreach($mine as $row)
                         <tr>
+                            <td class="text-ink-muted">{{ $row->leave_type ?? '—' }}</td>
                             <td class="text-ink-muted">{{ $row->leave_start?->format('d M Y') }}</td>
                             <td class="text-ink-muted">{{ $row->leave_end?->format('d M Y') }}</td>
                             <td>
@@ -127,6 +133,14 @@
                                     default => 'warning',
                                 }">{{ ucfirst($row->status) }}</x-badge>
                             </td>
+                            <td class="text-ink-muted">
+                                @if($row->reviewedByUser)
+                                    {{ $row->reviewedByUser->full_name }} · {{ $row->reviewed_at?->format('d M Y') }}
+                                @else
+                                    —
+                                @endif
+                            </td>
+                            <td class="max-w-[14rem] truncate text-ink-muted" title="{{ $row->decision_reason }}">{{ $row->decision_reason ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </x-table>
@@ -136,11 +150,18 @@
                 @foreach($mine as $row)
                     <div class="rounded-lg border border-surface-muted p-3">
                         <p class="font-medium text-ink">{{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</p>
+                        <p class="mt-0.5 text-sm text-ink-subtle">{{ $row->leave_type ?? 'Type not specified' }}</p>
                         <x-badge class="mt-1" :variant="match($row->status) {
                             'approved' => 'success',
                             'rejected' => 'danger',
                             default => 'warning',
                         }">{{ ucfirst($row->status) }}</x-badge>
+                        @if($row->reviewedByUser)
+                            <p class="mt-1 text-sm text-ink-subtle">Decided by {{ $row->reviewedByUser->full_name }} · {{ $row->reviewed_at?->format('d M Y') }}</p>
+                        @endif
+                        @if($row->decision_reason)
+                            <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->decision_reason }}"</p>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -155,6 +176,8 @@
                     <x-input label="From" name="leave_start" type="date" value="{{ old('leave_start') }}" />
                     <x-input label="To" name="leave_end" type="date" value="{{ old('leave_end') }}" />
                 </div>
+                <x-input label="Type (optional)" name="leave_type" type="text" placeholder="e.g. Personal, Sick, Conference" value="{{ old('leave_type') }}" />
+                <x-input label="Reason (optional)" name="reason" type="text" value="{{ old('reason') }}" />
                 <x-button type="submit" variant="primary">Submit request</x-button>
             </form>
         </x-card>
