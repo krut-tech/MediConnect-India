@@ -16,9 +16,11 @@ use Illuminate\Support\Facades\Auth;
 /**
  * Phase 6 finalization — leave / blocked-period management (items 2+3),
  * extended (Phase 6 correction) with affected-appointment conflict
- * detection on approval (items 5-6 of that spec), and further extended
- * (this correction) with the audit trail + preserved-not-hidden
- * resolution state for those affected appointments (items 7 + 9).
+ * detection on approval (items 5-6 of that spec), the audit trail +
+ * preserved-not-hidden resolution state for those affected appointments
+ * (items 7 + 9), and further extended (this correction, 2026-08-31
+ * continuation) with self-service edit/withdraw and search/filter
+ * (items 9-10).
  *
  * See the commit message for why this single controller/table covers
  * both concerns rather than duplicating either. A row in
@@ -33,10 +35,23 @@ use Illuminate\Support\Facades\Auth;
  * This still does NOT touch public.appt_availability directly, and
  * approving leave still does not cancel or auto-reschedule any
  * appt_bookings row — see approve()'s docblock below for exactly what
- * conflict resolution does and does not do, and why. Cross-referencing
- * leave against live appt_available_slots() slot computation (so a
- * blocked period also prevents NEW bookings during it) remains a
- * separately-scoped, not-yet-built item.
+ * conflict resolution does and does not do, and why.
+ *
+ * ============================================================
+ * SELF-SERVICE EDIT/WITHDRAW (item 9, this correction)
+ * ============================================================
+ * update()/withdraw() are backed by a new, additive RLS policy
+ * (staff_leave_update_own — verified live before this code was
+ * written) that permits a signed-in user to UPDATE their OWN
+ * staff_leave row only while status = 'requested', and only ever into
+ * status 'requested' (unchanged) or 'cancelled' (withdraw) — never
+ * 'approved'/'rejected', which stay exclusively
+ * staff_leave_facility_admin's domain. This is the exact same
+ * ownership-based pattern as every other _own policy already live on
+ * this table; nothing here bypasses RLS or adds an application-side
+ * substitute for it — the UPDATE will affect 0 rows (surfaced as the
+ * existing "not authorized" error, same discipline as every other
+ * write in this app) if RLS doesn't independently permit it.
  */
 class LeaveController extends Controller
 {
@@ -51,14 +66,33 @@ class LeaveController extends Controller
      * (patients_) role sees nothing here — this route sits behind the
      * same 'role' (any active staff assignment) middleware group as
      * schedule management, so a patient never reaches it at all.
+     *
+     * Item 10 (search/filter, this correction): optional `q` (staff
+     * member name), `status`, `date_from`, `date_to` query params are
+     * applied to the RLS-scoped base query before the admin/own split
+     * below — so both lists on this page reflect the active filter,
+     * never widening which rows RLS already returned.
      */
-    public function index(): View
+    public function index(Request $request): View
     {
         /** @var \App\Models\User&Authenticatable $user */
         $user = Auth::user();
 
+        $search = trim((string) $request->query('q', ''));
+        $status = trim((string) $request->query('status', ''));
+        $dateFrom = trim((string) $request->query('date_from', ''));
+        $dateTo = trim((string) $request->query('date_to', ''));
+        $validStatuses = ['requested', 'approved', 'rejected', 'cancelled'];
+
         $leave = StaffLeave::query()
             ->with(['staffAssignment.user', 'staffAssignment.facility', 'staffAssignment.role', 'requestedByUser', 'reviewedByUser'])
+            ->when($search !== '', fn ($query) => $query->whereHas(
+                'staffAssignment.user',
+                fn ($userQuery) => $userQuery->where('full_name', 'ilike', "%{$search}%")
+            ))
+            ->when(in_array($status, $validStatuses, true), fn ($query) => $query->where('status', $status))
+            ->when($dateFrom !== '', fn ($query) => $query->whereDate('leave_end', '>=', $dateFrom))
+            ->when($dateTo !== '', fn ($query) => $query->whereDate('leave_start', '<=', $dateTo))
             ->orderByDesc('leave_start')
             ->get();
 
@@ -66,6 +100,13 @@ class LeaveController extends Controller
             'leave' => $leave,
             'activeAssignment' => $user->activeStaffAssignment(),
             'isAdministrator' => $user->isAdministrator(),
+            'filters' => [
+                'q' => $search,
+                'status' => $status,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ],
+            'statusOptions' => $validStatuses,
         ]);
     }
 
@@ -117,18 +158,81 @@ class LeaveController extends Controller
     }
 
     /**
+     * Edit form for the signed-in user's own still-pending request.
+     * Reachable regardless of current status — the form itself, and
+     * update() below, are what actually enforce "only while requested"
+     * (both the UI check here and the live RLS policy independently
+     * enforce it; RLS is the real boundary, this is just UX so a
+     * decided request doesn't show an editable form that would then
+     * silently no-op).
+     */
+    public function edit(StaffLeave $leave): View|RedirectResponse
+    {
+        if ($leave->status !== 'requested') {
+            return redirect()->route('leave.index')->with('status', 'This request has already been decided and can no longer be edited.');
+        }
+
+        return view('leave.edit', [
+            'leave' => $leave,
+        ]);
+    }
+
+    /**
+     * Updates the signed-in user's own still-pending leave request.
+     * Whether this actually succeeds is entirely decided by the live
+     * staff_leave_update_own RLS policy (own assignment, status still
+     * 'requested') — the affected-row-count check below is the same
+     * discipline as every other write in this app, not a stand-in
+     * authorization check.
+     */
+    public function update(StoreLeaveRequest $request, StaffLeave $leave): RedirectResponse
+    {
+        $data = $request->validated();
+
+        $affected = StaffLeave::query()->whereKey($leave->getKey())->update([
+            'leave_start' => $data['leave_start'],
+            'leave_end' => $data['leave_end'],
+            'leave_type' => $data['leave_type'] ?? null,
+            'reason' => $data['reason'] ?? null,
+        ]);
+
+        if ($affected === 0) {
+            return back()->withErrors(['leave' => 'This request could not be updated — it may have already been decided, or you may not be authorized to edit it.'])->withInput();
+        }
+
+        return redirect()->route('leave.index')->with('status', 'Request updated.');
+    }
+
+    /**
+     * Withdraws (self-cancels) the signed-in user's own still-pending
+     * request. Deliberately a separate action from reject() — this is
+     * the requester withdrawing their own ask, not a facility admin's
+     * decision, so reviewed_by/reviewed_at are NOT set here (those
+     * remain "who decided this", which withdrawal isn't). Same RLS
+     * boundary (staff_leave_update_own) and affected-row-count
+     * discipline as update() above.
+     */
+    public function withdraw(StaffLeave $leave): RedirectResponse
+    {
+        $affected = StaffLeave::query()->whereKey($leave->getKey())->update([
+            'status' => 'cancelled',
+        ]);
+
+        if ($affected === 0) {
+            return back()->withErrors(['leave' => 'This request could not be withdrawn — it may have already been decided, or you may not be authorized to withdraw it.']);
+        }
+
+        return redirect()->route('leave.index')->with('status', 'Request withdrawn.');
+    }
+
+    /**
      * Approves one pending request — but first checks whether doing so
      * would affect any already-booked appointment for that doctor.
      *
      * Behavior:
      *   1. Compute affectedAppointments() for this leave's doctor/date
      *      range (active bookings only — 'booked'/'checked_in'; a
-     *      cancelled/completed/no_show booking is never "affected" —
-     *      NOTE: this was previously checked against a non-existent
-     *      'confirmed' status, which meant it could never match any
-     *      real row; fixed in this correction to the schema's actual
-     *      active statuses, verified live against the
-     *      appt_bookings_status_check constraint).
+     *      cancelled/completed/no_show booking is never "affected").
      *   2. If none exist, or the caller already passed ?confirm=1,
      *      approve exactly as before (updateStatus()).
      *   3. If any exist and this is not a confirmed request, the
@@ -141,17 +245,10 @@ class LeaveController extends Controller
      *   4. On a confirmed approval that DOES have affected appointments,
      *      each affected booking is marked resolution_state =
      *      'pending_reschedule' (resolved_by/resolved_at/resolution_note
-     *      set alongside it) — additive columns, see migration
-     *      phase6_cancellation_and_leave_audit_columns. The booking's
-     *      own status/scheduled_at/doctor are NOT changed: this is
-     *      metadata saying "this appointment needs facility follow-up,"
-     *      not an automatic reschedule or cancellation. Automatically
-     *      moving a patient's appointment to another doctor/time
-     *      without their consent is exactly the kind of unsafe
-     *      unapproved behavior the standing project rules call out, so
-     *      it is deliberately NOT done here — a real reschedule/notify
-     *      workflow remains a separately-scoped, not-yet-built item
-     *      (see MIGRATION_PROGRESS.md deferred list).
+     *      set alongside it) — additive columns. The booking's own
+     *      status/scheduled_at/doctor are NOT changed: this is metadata
+     *      saying "this appointment needs facility follow-up," not an
+     *      automatic reschedule or cancellation.
      */
     public function approve(StaffLeave $leave, Request $request): RedirectResponse
     {
