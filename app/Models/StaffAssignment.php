@@ -63,4 +63,15 @@ class StaffAssignment extends Model
     {
         return $this->belongsTo(Role::class, 'role_id');
     }
+
+    /**
+     * Phase 6 correction — added for the new Staff directory (item 5),
+     * which shows each staff member's department where set. Additive
+     * only; department_id already existed on this table (verified live)
+     * but had no Eloquent relation defined anywhere in this app yet.
+     */
+    public function department()
+    {
+        return $this->belongsTo(Department::class, 'department_id');
+    }
 }
