@@ -34,19 +34,30 @@ use Illuminate\Support\Facades\Auth;
  * signed-in user. Where a `WHERE` clause naming the primary key does
  * appear (applyScopedUpdate(), below), it identifies which row is meant
  * — it is not a security check standing in for RLS.
+ *
+ * ============================================================
+ * PHASE 6 CORRECTION — SEARCH/FILTER (item 11, 2026-08-31)
+ * ============================================================
+ * index()'s `q` now also matches patient name (previously MRN-only),
+ * and accepts an optional `facility_id` filter — both applied strictly
+ * on top of the same RLS-scoped base query as before.
  */
 class PatientController extends Controller
 {
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
+        $facilityId = trim((string) $request->query('facility_id', ''));
 
         $patients = Patient::query()
             ->with(['user', 'registeringFacility'])
-            ->when(
-                $search !== '',
-                fn ($query) => $query->where('mrn', 'ilike', "%{$search}%")
-            )
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('mrn', 'ilike', "%{$search}%")
+                        ->orWhereHas('user', fn ($q) => $q->where('full_name', 'ilike', "%{$search}%"));
+                });
+            })
+            ->when($facilityId !== '', fn ($query) => $query->where('registering_facility_id', $facilityId))
             ->orderBy('created_at', 'desc')
             ->paginate(15)
             ->withQueryString();
@@ -54,6 +65,7 @@ class PatientController extends Controller
         return view('patients.index', [
             'patients' => $patients,
             'search' => $search,
+            'facilityId' => $facilityId,
         ]);
     }
 
