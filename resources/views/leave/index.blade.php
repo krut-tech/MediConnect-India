@@ -46,12 +46,35 @@
     @endif
 
     @if($isAdministrator)
+        <x-card class="mb-4">
+            <form method="GET" action="{{ route('leave.index') }}" class="grid gap-3 sm:grid-cols-4">
+                <x-input label="Search" name="q" type="text" placeholder="Staff member name" value="{{ $filters['q'] }}" />
+                <div>
+                    <label class="mb-1 block text-sm font-medium text-ink">Status</label>
+                    <select name="status" class="w-full rounded-lg border border-surface-muted px-3 py-2 text-sm">
+                        <option value="">All statuses</option>
+                        @foreach($statusOptions as $option)
+                            <option value="{{ $option }}" @selected($filters['status'] === $option)>{{ ucfirst($option) }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <x-input label="From" name="date_from" type="date" value="{{ $filters['date_from'] }}" />
+                <x-input label="To" name="date_to" type="date" value="{{ $filters['date_to'] }}" />
+                <div class="sm:col-span-4 flex gap-2">
+                    <x-button type="submit" variant="primary">Filter</x-button>
+                    @if($filters['q'] || $filters['status'] || $filters['date_from'] || $filters['date_to'])
+                        <x-button href="{{ route('leave.index') }}" variant="secondary">Clear</x-button>
+                    @endif
+                </div>
+            </form>
+        </x-card>
+
         <x-card title="Requests to review" class="mb-6">
             @php($pending = $leave->where('status', 'requested'))
             @if($pending->isEmpty())
                 <x-empty-state
                     title="No pending requests"
-                    description="Nothing from your facility's staff is currently awaiting a decision."
+                    description="Nothing from your facility's staff is currently awaiting a decision (or none match your filter)."
                 />
             @else
                 <div class="hidden sm:block">
@@ -120,7 +143,7 @@
             />
         @else
             <div class="hidden sm:block">
-                <x-table :headings="['Type', 'From', 'To', 'Status', 'Decided by', 'Decision note']">
+                <x-table :headings="['Type', 'From', 'To', 'Status', 'Decided by', 'Decision note', '']">
                     @foreach($mine as $row)
                         <tr>
                             <td class="text-ink-muted">{{ $row->leave_type ?? '—' }}</td>
@@ -130,6 +153,7 @@
                                 <x-badge :variant="match($row->status) {
                                     'approved' => 'success',
                                     'rejected' => 'danger',
+                                    'cancelled' => 'neutral',
                                     default => 'warning',
                                 }">{{ ucfirst($row->status) }}</x-badge>
                             </td>
@@ -141,6 +165,18 @@
                                 @endif
                             </td>
                             <td class="max-w-[14rem] truncate text-ink-muted" title="{{ $row->decision_reason }}">{{ $row->decision_reason ?? '—' }}</td>
+                            <td class="text-right">
+                                @if($row->status === 'requested')
+                                    <div class="flex items-center justify-end gap-2">
+                                        <x-button href="{{ route('leave.edit', $row) }}" variant="secondary">Edit</x-button>
+                                        <form method="POST" action="{{ route('leave.withdraw', $row) }}" onsubmit="return confirm('Withdraw this request?');">
+                                            @csrf
+                                            @method('PATCH')
+                                            <x-button type="submit" variant="danger">Withdraw</x-button>
+                                        </form>
+                                    </div>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </x-table>
@@ -154,6 +190,7 @@
                         <x-badge class="mt-1" :variant="match($row->status) {
                             'approved' => 'success',
                             'rejected' => 'danger',
+                            'cancelled' => 'neutral',
                             default => 'warning',
                         }">{{ ucfirst($row->status) }}</x-badge>
                         @if($row->reviewedByUser)
@@ -161,6 +198,16 @@
                         @endif
                         @if($row->decision_reason)
                             <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->decision_reason }}"</p>
+                        @endif
+                        @if($row->status === 'requested')
+                            <div class="mt-2 flex gap-2">
+                                <x-button href="{{ route('leave.edit', $row) }}" variant="secondary" class="w-full">Edit</x-button>
+                                <form method="POST" action="{{ route('leave.withdraw', $row) }}" class="w-full" onsubmit="return confirm('Withdraw this request?');">
+                                    @csrf
+                                    @method('PATCH')
+                                    <x-button type="submit" variant="danger" class="w-full">Withdraw</x-button>
+                                </form>
+                            </div>
                         @endif
                     </div>
                 @endforeach
