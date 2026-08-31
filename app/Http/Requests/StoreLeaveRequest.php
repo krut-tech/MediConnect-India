@@ -14,10 +14,15 @@ use Illuminate\Foundation\Http\FormRequest;
  * duplicate that check, and authorize() returns true deliberately,
  * matching every other FormRequest in this app.
  *
- * staff_assignment_id and status are never fields on this request --
- * see LeaveController::store(), which sets staff_assignment_id from
- * Auth::user()->activeStaffAssignment() only, and hardcodes status to
+ * staff_assignment_id, status, requested_by, reviewed_by, reviewed_at,
+ * and decision_reason are never fields on this request -- see
+ * LeaveController::store(), which sets staff_assignment_id and
+ * requested_by from Auth::user() only, and hardcodes status to
  * 'requested' -- never from client input.
+ *
+ * leave_type/reason (Phase 6 correction, additive columns) are plain
+ * optional free text -- this app does not have an approved fixed
+ * taxonomy for leave types, so no `in:` rule is invented for one.
  */
 class StoreLeaveRequest extends FormRequest
 {
@@ -31,6 +36,8 @@ class StoreLeaveRequest extends FormRequest
         return [
             'leave_start' => ['required', 'date'],
             'leave_end' => ['required', 'date', 'after_or_equal:leave_start'],
+            'leave_type' => ['nullable', 'string', 'max:100'],
+            'reason' => ['nullable', 'string', 'max:1000'],
         ];
     }
 }
