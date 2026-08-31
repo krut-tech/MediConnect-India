@@ -44,6 +44,21 @@ use Illuminate\Database\Eloquent\Model;
  * appt_bookings_insert's WITH CHECK (patient booking for self, OR
  * facility staff booking within their own scope) is the sole authority
  * on whether a given insert is permitted.
+ *
+ * ============================================================
+ * CANCELLATION / RESOLUTION AUDIT TRAIL (Phase 6 correction, additive)
+ * ============================================================
+ * cancelled_by/cancelled_at/cancellation_reason record who cancelled a
+ * booking and why (set by AppointmentController::cancel()).
+ * resolution_state/resolution_note/resolved_by/resolved_at are
+ * separate: they record when a FACILITY-SIDE event (an approved doctor
+ * leave that overlaps this already-booked appointment) affects a
+ * booking that the patient never touched. resolution_state is one of
+ * 'rescheduled' | 'cancelled_by_facility' | 'pending_reschedule', or
+ * null for a booking never affected this way — see the DB check
+ * constraint appt_bookings_resolution_state_check. Nothing here ever
+ * silently deletes a row; both trails are purely additive metadata on
+ * top of the existing status column.
  */
 class AppointmentBooking extends Model
 {
@@ -65,6 +80,13 @@ class AppointmentBooking extends Model
         'status',
         'booked_by',
         'idempotency_key',
+        'cancelled_by',
+        'cancelled_at',
+        'cancellation_reason',
+        'resolution_state',
+        'resolution_note',
+        'resolved_by',
+        'resolved_at',
     ];
 
     protected function casts(): array
@@ -75,6 +97,8 @@ class AppointmentBooking extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'resolved_at' => 'datetime',
         ];
     }
 
@@ -96,5 +120,15 @@ class AppointmentBooking extends Model
     public function bookedByUser()
     {
         return $this->belongsTo(User::class, 'booked_by');
+    }
+
+    public function cancelledByUser()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    public function resolvedByUser()
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 }
