@@ -129,6 +129,12 @@ use Illuminate\Support\Facades\Route;
 |     StaffController's own docblock for why this closes a real gap
 |     (RLS already permitted this; no route/controller ever exposed it).
 |
+| PHASE 6 BUGFIX (production browser testing) adds /staff/lookup
+| (StaffController::lookup(), read-only JSON, BUG 4's "show the existing
+| user's current name before submitting" requirement) — same 'role'
+| tier, and reveals nothing beyond what the caller's own RLS context
+| already permits (see that method's docblock).
+|
 */
 
 Route::get('/', function () {
@@ -241,5 +247,10 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         Route::get('/staff', [StaffController::class, 'index'])->name('staff.index');
         Route::get('/staff/create', [StaffController::class, 'create'])->name('staff.create');
         Route::post('/staff', [StaffController::class, 'store'])->name('staff.store');
+
+        // PHASE 6 BUGFIX — read-only lookup for the create form's name
+        // preview (BUG 4). Reveals nothing beyond the caller's own RLS
+        // context — see StaffController::lookup()'s docblock.
+        Route::get('/staff/lookup', [StaffController::class, 'lookup'])->name('staff.lookup');
     });
 });
