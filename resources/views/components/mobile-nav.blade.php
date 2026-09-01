@@ -47,6 +47,13 @@
             same two conditions as sidebar.blade.php (see that file's
             docblock for the full rationale); both remain UX-only, no
             change to route/RLS authorization.
+
+            PHASE 6 CORRECTION (2026-08-31 continuation): "Staff" added
+            here in the same commit as sidebar.blade.php this time
+            (rather than in a later catch-up commit, per the lesson from
+            the "My Schedule"/"Leave" gap above) — same
+            hasActiveStaffAssignment() condition, see sidebar.blade.php's
+            docblock for the full rationale.
         --}}
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
@@ -64,6 +71,11 @@
             @if (auth()->user()?->hasActiveStaffAssignment())
                 <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
                     Patients
+                </x-sidebar-link>
+            @endif
+            @if (auth()->user()?->hasActiveStaffAssignment())
+                <x-sidebar-link href="{{ route('staff.index') }}" :active="request()->routeIs('staff.*')">
+                    Staff
                 </x-sidebar-link>
             @endif
             @if (auth()->user()?->hasActiveRole('doctor'))
