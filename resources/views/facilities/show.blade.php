@@ -134,6 +134,19 @@
                         @endforeach
                     </ul>
                 @endif
+
+                {{-- Phase 6 correction (item 6): hierarchy drill-down into
+                     the full, searchable Staff directory scoped to this
+                     facility — only shown to a signed-in staff member,
+                     since /staff sits behind the 'role' middleware group
+                     (a plain patient would 403). --}}
+                @if(auth()->user()?->hasActiveStaffAssignment())
+                    <div class="mt-3 border-t border-surface-muted pt-3">
+                        <x-button href="{{ route('staff.index', ['facility_id' => $facility->id]) }}" variant="secondary" class="w-full">
+                            View all staff at this facility
+                        </x-button>
+                    </div>
+                @endif
             </x-card>
         </div>
     </div>
