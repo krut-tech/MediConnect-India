@@ -35,25 +35,18 @@
             Phase 6 WS2: "Appointments" unconditional, mirrors
             sidebar.blade.php — see its docblock for the full rationale.
 
-            PHASE 6 CORRECTION: "My Doctor Profile" now gated on
-            Auth::user()->hasActiveRole('doctor') instead of "any staff
-            assignment" — see sidebar.blade.php's docblock for the full
-            rationale (a Hospital Admin account was confirmed to see
-            this link under the old condition).
-
-            PHASE 6 FINALIZATION: this panel had fallen out of sync with
-            sidebar.blade.php — "My Schedule" and "Leave & Blocked
-            Periods" existed on desktop only. Added here with the exact
-            same two conditions as sidebar.blade.php (see that file's
-            docblock for the full rationale); both remain UX-only, no
-            change to route/RLS authorization.
+            PHASE 6 FINALIZATION: "My Schedule" and "Leave & Blocked
+            Periods" added, same two conditions as sidebar.blade.php.
 
             PHASE 6 CORRECTION (2026-08-31 continuation): "Staff" added
-            here in the same commit as sidebar.blade.php this time
-            (rather than in a later catch-up commit, per the lesson from
-            the "My Schedule"/"Leave" gap above) — same
-            hasActiveStaffAssignment() condition, see sidebar.blade.php's
-            docblock for the full rationale.
+            here in the same commit as sidebar.blade.php.
+
+            PHASE 6 BUGFIX (BUG 8, production browser testing): "My
+            Doctor Profile" REMOVED here in the SAME commit as
+            sidebar.blade.php this time (learning from this panel
+            drifting out of sync twice before) — it duplicated the
+            top-right "Profile" menu, which now correctly resolves to it
+            for a doctor. See navbar.blade.php's docblock.
         --}}
         <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
             <x-sidebar-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
@@ -76,11 +69,6 @@
             @if (auth()->user()?->hasActiveStaffAssignment())
                 <x-sidebar-link href="{{ route('staff.index') }}" :active="request()->routeIs('staff.*')">
                     Staff
-                </x-sidebar-link>
-            @endif
-            @if (auth()->user()?->hasActiveRole('doctor'))
-                <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
-                    My Doctor Profile
                 </x-sidebar-link>
             @endif
             @if (auth()->user()?->hasActiveRole('doctor') && auth()->user()?->doctorProfile)
