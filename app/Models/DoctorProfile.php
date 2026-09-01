@@ -16,6 +16,14 @@ use Illuminate\Database\Eloquent\Model;
  * row (`user_id = auth.uid()`), or a super admin any row. Publicly
  * SELECT-able (subject to `deleted_at IS NULL`) to any authenticated
  * user, same tier as `facilities` per DATABASE_MAPPING.md.
+ *
+ * PHASE 6 BUGFIX (doctor creation flow): an additional, narrowly-scoped
+ * policy (`doctor_profiles_write_facility_admin`) now permits a
+ * hospital_admin to write a row for a user who holds an active 'doctor'
+ * staff_assignments row at a facility that admin administers — enabling
+ * StaffController's admin-assisted doctor-profile setup when adding a
+ * doctor. It does not widen visibility/writability beyond that specific
+ * facility-scoped case; see the migration for the exact grant.
  */
 class DoctorProfile extends Model
 {
