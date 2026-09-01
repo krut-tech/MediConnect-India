@@ -43,6 +43,14 @@
     everything either page can do remains appt_availability_write_doctor
     / staff_leave_insert_own / staff_leave_select_own /
     staff_leave_facility_admin RLS, none of which this file touches.
+
+    PHASE 6 CORRECTION (2026-08-31 continuation): "Staff" added, same
+    hasActiveStaffAssignment() condition as "Patients"/"Leave & Blocked
+    Periods" — any signed-in staff member can at least see their own row
+    (staff_assignments_select_own); a hospital_admin/super_admin sees
+    their full authorized scope via staff_assignments_select_facility_
+    admin. This is UX-only — see StaffController's own docblock for the
+    real, already-live RLS boundary.
 --}}
 <aside {{ $attributes->merge(['class' => 'w-64 shrink-0 flex-col border-r border-surface-muted bg-white ' . $class]) }}>
     <div class="flex items-center gap-2 px-5 py-4 border-b border-surface-muted">
@@ -68,6 +76,11 @@
         @if (auth()->user()?->hasActiveStaffAssignment())
             <x-sidebar-link href="{{ route('patients.index') }}" :active="request()->routeIs('patients.*')">
                 Patients
+            </x-sidebar-link>
+        @endif
+        @if (auth()->user()?->hasActiveStaffAssignment())
+            <x-sidebar-link href="{{ route('staff.index') }}" :active="request()->routeIs('staff.*')">
+                Staff
             </x-sidebar-link>
         @endif
         @if (auth()->user()?->hasActiveRole('doctor'))
