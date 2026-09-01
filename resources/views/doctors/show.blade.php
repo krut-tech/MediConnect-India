@@ -7,7 +7,7 @@
         ]" class="mb-3" />
 
         <x-page-header
-            :title="$doctor->user?->full_name ?? 'Unnamed doctor'"
+            :title="$doctor->user?->full_name ?? 'Name on file missing'"
             :subtitle="$doctor->registration_number ? 'Reg. no. '.$doctor->registration_number : null"
         >
             {{-- Phase 6 WS2: "Book appointment" always shown for a
