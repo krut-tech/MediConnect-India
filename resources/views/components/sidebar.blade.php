@@ -24,17 +24,6 @@
     carries no 'role' gate either. This is UX-only — appt_bookings_
     select_own/_doctor/_facility_staff RLS decides what actually shows.
 
-    PHASE 6 CORRECTION: "My Doctor Profile" previously reused the same
-    hasActiveStaffAssignment() condition as "Patients" ("only staff
-    members are plausible doctors") — but that is true of every staff
-    role, not just doctors, and was confirmed live to show this link
-    for a Hospital Admin account. It now uses
-    Auth::user()->hasActiveRole('doctor') (User::hasActiveRole(),
-    checking the verified `roles.code` value on the user's active
-    staff_assignments row) so only an actual doctor sees it.
-    /my-doctor-profile itself still carries no 'role' gate (see route
-    comment) — this remains UX-only, not a new authorization boundary.
-
     PHASE 6 FINALIZATION: "My Schedule" (doctor + has a doctor profile
     published — see route/controller: /doctors/{doctor}/schedule binds
     a DoctorProfile) and "Leave & Blocked Periods" (any active staff
@@ -51,6 +40,15 @@
     their full authorized scope via staff_assignments_select_facility_
     admin. This is UX-only — see StaffController's own docblock for the
     real, already-live RLS boundary.
+
+    PHASE 6 BUGFIX (BUG 8, production browser testing): "My Doctor
+    Profile" REMOVED from here — it duplicated the top-right "Profile"
+    menu, which now correctly resolves to it for a doctor (see
+    navbar.blade.php's docblock, same commit as this removal). Doctor-
+    specific OPERATIONAL navigation ("My Schedule", "Leave & Blocked
+    Periods") stays here, per the "keep operational navigation, move
+    profile editing to the top-right menu" instruction — those aren't
+    profile-editing screens, they're day-to-day tools.
 --}}
 <aside {{ $attributes->merge(['class' => 'w-64 shrink-0 flex-col border-r border-surface-muted bg-white ' . $class]) }}>
     <div class="flex items-center gap-2 px-5 py-4 border-b border-surface-muted">
@@ -81,11 +79,6 @@
         @if (auth()->user()?->hasActiveStaffAssignment())
             <x-sidebar-link href="{{ route('staff.index') }}" :active="request()->routeIs('staff.*')">
                 Staff
-            </x-sidebar-link>
-        @endif
-        @if (auth()->user()?->hasActiveRole('doctor'))
-            <x-sidebar-link href="{{ route('doctors.my-profile') }}" :active="request()->routeIs('doctors.my-profile')">
-                My Doctor Profile
             </x-sidebar-link>
         @endif
         @if (auth()->user()?->hasActiveRole('doctor') && auth()->user()?->doctorProfile)
