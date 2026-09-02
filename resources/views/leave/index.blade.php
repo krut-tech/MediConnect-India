@@ -134,16 +134,32 @@
         </x-card>
 
         {{--
-            PHASE 6 AUDIT CORRECTION: this card is the fix. Everything
-            above only ever showed status='requested' rows. Everything
-            below ("My requests") only ever shows the signed-in admin's
-            OWN staff_assignment_id. Neither subset can ever contain,
-            say, another doctor's APPROVED leave — even though RLS
+            PHASE 6 AUDIT CORRECTION: this card is the fix for the
+            original production-visibility bug. Everything above only
+            ever showed status='requested' rows. Everything below ("My
+            requests") only ever shows the signed-in admin's OWN
+            staff_assignment_id. Neither subset can ever contain, say,
+            another doctor's APPROVED leave — even though RLS
             (staff_leave_facility_admin) and the controller's filters
             both already return it correctly in $leave. This card shows
             the full filtered $leave collection (every status, every
             staff member RLS permits) so that data is no longer fetched
             and then thrown away.
+
+            PHASE 6 CORRECTION (approved-leave revoke): the Actions
+            column's Revoke button is scoped to status==='approved'
+            only — every other status (requested/rejected/cancelled/
+            revoked) intentionally shows no destructive action here,
+            per spec item 14 ("no destructive actions unless explicitly
+            supported"). A still-'requested' row belongs to the
+            "Requests to review" card above, not here, so Approve/Reject
+            never appear in this table. There is deliberately no Revoke
+            button anywhere in "My requests" below — an admin's own
+            approved leave can still be revoked (the real boundary is
+            facility-scoped RLS, not "whose row is this"), but only by
+            reaching it through this facility-wide table, not through
+            the self-service section, per spec item 6's "no self-service
+            revoke of one's own approved leave" intent.
         --}}
         <x-card title="Leave & blocked periods" class="mb-6">
             @if($leave->isEmpty())
@@ -152,22 +168,22 @@
                     description="Try widening the status, date range, or staff name filter above."
                 />
             @else
-                <div class="hidden sm:block">
-                    <x-table :headings="['Staff', 'Role', 'Facility', 'Department', 'Period', 'Type', 'Reason', 'Status', 'Requested by', 'Requested at', 'Decided by', 'Decided at']">
+                <div class="hidden lg:block overflow-x-auto">
+                    <x-table :headings="['Staff', 'Role', 'Facility', 'Department', 'Period', 'Type', 'Reason', 'Status', 'Requested by', 'Requested at', 'Decided by', 'Decided at', 'Revoked', '']">
                         @foreach($leave as $row)
                             <tr>
                                 <td class="font-medium text-ink">{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }}</td>
                                 <td class="text-ink-muted">{{ $row->staffAssignment?->role?->label ?? '—' }}</td>
                                 <td class="text-ink-muted">{{ $row->staffAssignment?->facility?->name ?? '—' }}</td>
                                 <td class="text-ink-muted">{{ $row->staffAssignment?->department?->name ?? '—' }}</td>
-                                <td class="text-ink-muted">{{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</td>
                                 <td class="text-ink-muted">{{ $row->leave_type ?? '—' }}</td>
-                                <td class="max-w-[14rem] truncate text-ink-muted" title="{{ $row->reason }}">{{ $row->reason ?? '—' }}</td>
+                                <td class="max-w-[12rem] truncate text-ink-muted" title="{{ $row->reason }}">{{ $row->reason ?? '—' }}</td>
                                 <td>
                                     <x-badge :variant="match($row->status) {
                                         'approved' => 'success',
                                         'rejected' => 'danger',
-                                        'cancelled' => 'neutral',
+                                        'cancelled', 'revoked' => 'neutral',
                                         default => 'warning',
                                     }">{{ ucfirst($row->status) }}</x-badge>
                                 </td>
@@ -183,12 +199,25 @@
                                     @endif
                                 </td>
                                 <td class="text-ink-muted">{{ $row->reviewed_at?->format('d M Y') ?? '—' }}</td>
+                                <td class="max-w-[10rem] text-ink-muted" title="{{ $row->revocation_reason }}">
+                                    @if($row->status === 'revoked')
+                                        {{ $row->revokedByUser?->full_name ?? '—' }}<br>
+                                        <span class="text-xs">{{ $row->revoked_at?->format('d M Y') ?? '—' }}</span>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td class="text-right">
+                                    @if($row->status === 'approved')
+                                        <x-button href="{{ route('leave.revoke.confirm', $row) }}" variant="danger">Revoke</x-button>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </x-table>
                 </div>
 
-                <div class="space-y-3 sm:hidden">
+                <div class="space-y-3 lg:hidden">
                     @foreach($leave as $row)
                         <div class="rounded-lg border border-surface-muted p-3">
                             <p class="font-medium text-ink">{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }}</p>
@@ -200,12 +229,23 @@
                             <x-badge class="mt-1" :variant="match($row->status) {
                                 'approved' => 'success',
                                 'rejected' => 'danger',
-                                'cancelled' => 'neutral',
+                                'cancelled', 'revoked' => 'neutral',
                                 default => 'warning',
                             }">{{ ucfirst($row->status) }}</x-badge>
                             <p class="mt-1 text-sm text-ink-subtle">Requested by {{ $row->requestedByUser?->full_name ?? '—' }} · {{ $row->created_at?->format('d M Y') ?? '—' }}</p>
                             @if($row->status === 'approved' || $row->status === 'rejected')
                                 <p class="mt-0.5 text-sm text-ink-subtle">Decided by {{ $row->reviewedByUser?->full_name ?? '—' }}{{ $row->reviewed_at ? ' · '.$row->reviewed_at->format('d M Y') : '' }}</p>
+                            @endif
+                            @if($row->status === 'revoked')
+                                <p class="mt-0.5 text-sm text-ink-subtle">Revoked by {{ $row->revokedByUser?->full_name ?? '—' }}{{ $row->revoked_at ? ' · '.$row->revoked_at->format('d M Y') : '' }}</p>
+                                @if($row->revocation_reason)
+                                    <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->revocation_reason }}"</p>
+                                @endif
+                            @endif
+                            @if($row->status === 'approved')
+                                <div class="mt-2">
+                                    <x-button href="{{ route('leave.revoke.confirm', $row) }}" variant="danger" class="w-full">Revoke</x-button>
+                                </div>
                             @endif
                         </div>
                     @endforeach
@@ -233,18 +273,20 @@
                                 <x-badge :variant="match($row->status) {
                                     'approved' => 'success',
                                     'rejected' => 'danger',
-                                    'cancelled' => 'neutral',
+                                    'cancelled', 'revoked' => 'neutral',
                                     default => 'warning',
                                 }">{{ ucfirst($row->status) }}</x-badge>
                             </td>
                             <td class="text-ink-muted">
-                                @if($row->reviewedByUser)
+                                @if($row->status === 'revoked')
+                                    {{ $row->revokedByUser?->full_name ?? '—' }} · {{ $row->revoked_at?->format('d M Y') }}
+                                @elseif($row->reviewedByUser)
                                     {{ $row->reviewedByUser->full_name }} · {{ $row->reviewed_at?->format('d M Y') }}
                                 @else
                                     —
                                 @endif
                             </td>
-                            <td class="max-w-[14rem] truncate text-ink-muted" title="{{ $row->decision_reason }}">{{ $row->decision_reason ?? '—' }}</td>
+                            <td class="max-w-[14rem] truncate text-ink-muted" title="{{ $row->status === 'revoked' ? $row->revocation_reason : $row->decision_reason }}">{{ ($row->status === 'revoked' ? $row->revocation_reason : $row->decision_reason) ?? '—' }}</td>
                             <td class="text-right">
                                 @if($row->status === 'requested')
                                     <div class="flex items-center justify-end gap-2">
@@ -270,14 +312,19 @@
                         <x-badge class="mt-1" :variant="match($row->status) {
                             'approved' => 'success',
                             'rejected' => 'danger',
-                            'cancelled' => 'neutral',
+                            'cancelled', 'revoked' => 'neutral',
                             default => 'warning',
                         }">{{ ucfirst($row->status) }}</x-badge>
-                        @if($row->reviewedByUser)
+                        @if($row->status === 'revoked')
+                            <p class="mt-1 text-sm text-ink-subtle">Revoked by {{ $row->revokedByUser?->full_name ?? '—' }} · {{ $row->revoked_at?->format('d M Y') }}</p>
+                            @if($row->revocation_reason)
+                                <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->revocation_reason }}"</p>
+                            @endif
+                        @elseif($row->reviewedByUser)
                             <p class="mt-1 text-sm text-ink-subtle">Decided by {{ $row->reviewedByUser->full_name }} · {{ $row->reviewed_at?->format('d M Y') }}</p>
-                        @endif
-                        @if($row->decision_reason)
-                            <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->decision_reason }}"</p>
+                            @if($row->decision_reason)
+                                <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->decision_reason }}"</p>
+                            @endif
                         @endif
                         @if($row->status === 'requested')
                             <div class="mt-2 flex gap-2">
