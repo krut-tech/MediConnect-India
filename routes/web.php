@@ -58,8 +58,8 @@ use Illuminate\Support\Facades\Route;
 | own doctor_profiles row — also no 'role' gate, mirroring /my-profile:
 | any authenticated user may publish a doctor profile, and
 | doctor_profiles_write_own RLS independently enforces "own record
-| only"). Neither adds any new middleware or changes existing route
-| behavior.
+| only" for both the create and update paths). Neither adds any new
+| middleware or changes existing route behavior.
 |
 | Phase 6 Workstream 2 adds /doctors/{doctor}/book (real, dynamic
 | availability for one doctor — no 'role' gate, same tier as
@@ -102,7 +102,7 @@ use Illuminate\Support\Facades\Route;
 |
 | PHASE 6 FINALIZATION also adds /leave (index/store/approve/reject —
 | LeaveController, items 2+3: leave AND blocked-period management, one
-| table/controller — see LeaveController's own docblock for why).
+| table/controller — see LeaveController's class docblock for why).
 | Same 'role' tier as /doctors/{doctor}/schedule: only a signed-in
 | staff member reaches the form. staff_leave_insert_own/_select_own
 | (own requests) and staff_leave_facility_admin (facility-scoped
@@ -134,6 +134,16 @@ use Illuminate\Support\Facades\Route;
 | user's current name before submitting" requirement) — same 'role'
 | tier, and reveals nothing beyond what the caller's own RLS context
 | already permits (see that method's docblock).
+|
+| PHASE 6 CORRECTION (approved-leave revoke) adds
+| /leave/{leave}/revoke (GET confirmation screen, PATCH the actual
+| revoke) — LeaveController::confirmRevoke()/revoke(). Same 'role' tier
+| and same discipline as the rest of leave management: the real
+| authorization/facility-isolation boundary remains
+| staff_leave_facility_admin RLS (unchanged, verified live before and
+| after this commit); this route gate is reachability only. See
+| revoke()'s own docblock for the full state-machine + appointment-
+| engine-integration rationale.
 |
 */
 
@@ -238,6 +248,14 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         Route::get('/leave/{leave}/edit', [LeaveController::class, 'edit'])->name('leave.edit');
         Route::patch('/leave/{leave}', [LeaveController::class, 'update'])->name('leave.update');
         Route::patch('/leave/{leave}/withdraw', [LeaveController::class, 'withdraw'])->name('leave.withdraw');
+
+        // PHASE 6 CORRECTION (approved-leave revoke) — confirmation
+        // screen (GET) + the actual revoke (PATCH). Real authorization/
+        // facility-isolation remains staff_leave_facility_admin RLS,
+        // unchanged by this commit — see LeaveController::revoke()'s
+        // own docblock.
+        Route::get('/leave/{leave}/revoke', [LeaveController::class, 'confirmRevoke'])->name('leave.revoke.confirm');
+        Route::patch('/leave/{leave}/revoke', [LeaveController::class, 'revoke'])->name('leave.revoke');
 
         // PHASE 6 CORRECTION (2026-08-31 continuation) — staff
         // directory + creation (items 2, 5, 6). Real authorization is
