@@ -19,13 +19,13 @@ use Illuminate\Support\Facades\Auth;
  * detection on approval (items 5-6 of that spec), the audit trail +
  * preserved-not-hidden resolution state for those affected appointments
  * (items 7 + 9), further extended (2026-08-31 continuation) with
- * self-service edit/withdraw and search/filter (items 9-10), and
- * further extended (this correction, production data-visibility audit)
- * by fixing a view-layer bug where a hospital_admin's facility-wide,
- * non-pending leave records (e.g. another doctor's approved leave)
- * were fetched correctly by index() below but never rendered anywhere
- * — see the companion view change's docblock and the commit message
- * for the full root-cause writeup, confirmed via live DB + RLS read.
+ * self-service edit/withdraw and search/filter (items 9-10), extended
+ * (production data-visibility audit) by fixing a view-layer bug where a
+ * hospital_admin's facility-wide, non-pending leave records were
+ * fetched correctly by index() but never rendered, and further extended
+ * (this correction, revoke workflow) with approved-leave revocation —
+ * see revoke()'s own docblock below for the full state-machine
+ * rationale and why it deliberately does NOT touch appt_bookings.
  *
  * See the commit message for why this single controller/table covers
  * both concerns rather than duplicating either. A row in
@@ -43,7 +43,33 @@ use Illuminate\Support\Facades\Auth;
  * conflict resolution does and does not do, and why.
  *
  * ============================================================
- * SELF-SERVICE EDIT/WITHDRAW (item 9, this correction)
+ * STATE MACHINE (this correction — enforced explicitly below)
+ * ============================================================
+ *   requested -> approved   (approve(), only from 'requested')
+ *   requested -> rejected   (reject(),  only from 'requested')
+ *   requested -> cancelled  (withdraw(), only from 'requested' — RLS-enforced)
+ *   approved  -> revoked    (revoke(),  only from 'approved')
+ * Every other transition (rejected/cancelled/revoked -> anything;
+ * approved -> approved; requested -> revoked; etc.) is rejected.
+ *
+ * Before this correction, staff_leave_facility_admin's RLS policy (an
+ * unrestricted-by-status ALL policy — see StaffLeave's docblock) meant
+ * approve()/reject() would silently let an admin transition ANY row
+ * regardless of its current status — e.g. re-"approving" an already-
+ * rejected request via a manipulated PATCH request, or double-approving
+ * an already-approved one and clobbering reviewed_by/reviewed_at. RLS
+ * was never going to catch this: it correctly scopes WHICH rows an
+ * admin may touch (their facility only), not WHICH status transitions
+ * are semantically valid — that is a business rule, not a row-
+ * visibility rule, so it is enforced here at the application layer
+ * (a guard clause in each transition method), matching the codebase's
+ * own established "RLS decides visibility, the controller decides
+ * business validity" split (see e.g. edit()'s pre-existing
+ * status==='requested' guard, same discipline applied consistently
+ * rather than only to the new revoke() method).
+ *
+ * ============================================================
+ * SELF-SERVICE EDIT/WITHDRAW (item 9, earlier correction)
  * ============================================================
  * update()/withdraw() are backed by a new, additive RLS policy
  * (staff_leave_update_own — verified live before this code was
@@ -78,10 +104,15 @@ class LeaveController extends Controller
      * below — so both lists on this page reflect the active filter,
      * never widening which rows RLS already returned.
      *
-     * staffAssignment.department eager-loaded (this correction) purely
+     * staffAssignment.department eager-loaded (production audit) purely
      * for the view's facility-wide table — department_id/relation
      * already existed (StaffAssignment::department(), added for the
      * Staff directory), just never pulled into this query before.
+     *
+     * $validStatuses now includes 'cancelled' and 'revoked' (this
+     * correction) — both real, reachable statuses (see the class
+     * docblock's state machine), so both must be selectable in the
+     * status filter dropdown and must not be excluded from "All".
      */
     public function index(Request $request): View
     {
@@ -92,10 +123,10 @@ class LeaveController extends Controller
         $status = trim((string) $request->query('status', ''));
         $dateFrom = trim((string) $request->query('date_from', ''));
         $dateTo = trim((string) $request->query('date_to', ''));
-        $validStatuses = ['requested', 'approved', 'rejected', 'cancelled'];
+        $validStatuses = ['requested', 'approved', 'rejected', 'cancelled', 'revoked'];
 
         $leave = StaffLeave::query()
-            ->with(['staffAssignment.user', 'staffAssignment.facility', 'staffAssignment.role', 'staffAssignment.department', 'requestedByUser', 'reviewedByUser'])
+            ->with(['staffAssignment.user', 'staffAssignment.facility', 'staffAssignment.role', 'staffAssignment.department', 'requestedByUser', 'reviewedByUser', 'revokedByUser'])
             ->when($search !== '', fn ($query) => $query->whereHas(
                 'staffAssignment.user',
                 fn ($userQuery) => $userQuery->where('full_name', 'ilike', "%{$search}%")
@@ -128,9 +159,9 @@ class LeaveController extends Controller
      * used to file a request against someone else's assignment no
      * matter what the request body contains. status is hardcoded to
      * 'requested', never accepted from input either — only
-     * approve()/reject() below (facility_admin RLS-gated) may change
-     * it. requested_by is likewise always the signed-in user, never
-     * client input.
+     * approve()/reject()/revoke() below (facility_admin RLS-gated) may
+     * change it. requested_by is likewise always the signed-in user,
+     * never client input.
      *
      * A caller with no active staff assignment (shouldn't happen — this
      * route sits behind 'role', same as schedule management) gets an
@@ -175,6 +206,12 @@ class LeaveController extends Controller
      * enforce it; RLS is the real boundary, this is just UX so a
      * decided request doesn't show an editable form that would then
      * silently no-op).
+     *
+     * Deliberately NOT extended to approved leave (spec item 12,
+     * this correction): the preferred workflow for changing an
+     * approved period is revoke() below, then a fresh request — not an
+     * in-place edit of the original approved row, which would destroy
+     * the audit trail the revoke workflow exists to preserve.
      */
     public function edit(StaffLeave $leave): View|RedirectResponse
     {
@@ -239,6 +276,12 @@ class LeaveController extends Controller
      * Approves one pending request — but first checks whether doing so
      * would affect any already-booked appointment for that doctor.
      *
+     * State-machine guard (this correction): only a 'requested' row may
+     * be approved. Before this guard, staff_leave_facility_admin's
+     * unrestricted-by-status RLS meant this method would silently
+     * "approve" a row regardless of its current status — see the class
+     * docblock's state-machine section for the full rationale.
+     *
      * Behavior:
      *   1. Compute affectedAppointments() for this leave's doctor/date
      *      range (active bookings only — 'booked'/'checked_in'; a
@@ -262,6 +305,10 @@ class LeaveController extends Controller
      */
     public function approve(StaffLeave $leave, Request $request): RedirectResponse
     {
+        if ($leave->status !== 'requested') {
+            return back()->withErrors(['leave' => 'Only a pending request can be approved. This request has already been decided.']);
+        }
+
         $affected = $this->affectedAppointments($leave);
 
         if (! $request->boolean('confirm')) {
@@ -299,11 +346,174 @@ class LeaveController extends Controller
      * Rejects one pending request. No conflict check needed — rejecting
      * leaves every appointment (and the doctor's normal availability)
      * completely unaffected. Same authorization/affected-row-count
-     * discipline as approve() above.
+     * discipline as approve() above, plus the same state-machine guard
+     * (this correction) — only a 'requested' row may be rejected.
      */
     public function reject(StaffLeave $leave, Request $request): RedirectResponse
     {
+        if ($leave->status !== 'requested') {
+            return back()->withErrors(['leave' => 'Only a pending request can be rejected. This request has already been decided.']);
+        }
+
         return $this->updateStatus($leave, 'rejected', $request);
+    }
+
+    /**
+     * Confirmation screen for revoking one APPROVED leave/blocked-period
+     * — spec item 4 ("Revoke confirmation must NOT immediately change
+     * the record"). Reachable only from an 'approved' row; anything
+     * else redirects back with an explanatory message, same UX-guard
+     * pattern as edit() above (RLS + revoke()'s own guard are the real
+     * boundary; this is reachability only).
+     */
+    public function confirmRevoke(StaffLeave $leave): View|RedirectResponse
+    {
+        if ($leave->status !== 'approved') {
+            return redirect()->route('leave.index')->with('status', 'Only approved leave can be revoked.');
+        }
+
+        $leave->loadMissing(['staffAssignment.user', 'staffAssignment.facility']);
+
+        return view('leave.revoke', [
+            'leave' => $leave,
+        ]);
+    }
+
+    /**
+     * Revokes one previously-APPROVED leave/blocked-period request —
+     * spec's "Approved Leave Revoke" workflow (this correction).
+     *
+     * ============================================================
+     * WHY REVOKE, NOT DELETE OR EDIT (spec items 2, 5, 12)
+     * ============================================================
+     * The row is never deleted — a revoked leave remains a permanent,
+     * queryable historical record (still returned by index() under the
+     * 'revoked' status filter). It is also never edited in place: this
+     * method only ever flips status -> 'revoked' and fills the three
+     * new revoked_* columns (see StaffLeave's docblock for why those
+     * are separate columns from reviewed_by/reviewed_at, not a reuse of
+     * them) — the original leave_start/leave_end/requested_by/
+     * reviewed_by/reviewed_at are untouched, preserving exactly what
+     * was originally approved and by whom. If the underlying need is a
+     * genuinely different date range, the spec's own preferred
+     * workflow applies: revoke this row, then file a new request — two
+     * auditable rows instead of one row silently rewritten.
+     *
+     * ============================================================
+     * STATE-MACHINE GUARD (spec item 13/19: E, F, G)
+     * ============================================================
+     * Only a currently-'approved' row may be revoked — rejected/
+     * cancelled/already-revoked -> revoked are all rejected here at the
+     * application layer, same rationale as approve()/reject()'s new
+     * guards above (RLS's staff_leave_facility_admin policy is
+     * unrestricted by status, so this business rule cannot come from
+     * RLS alone).
+     *
+     * ============================================================
+     * AUTHORIZATION (spec items 6, 7)
+     * ============================================================
+     * No separate Laravel-side authorization check is added here — the
+     * live staff_leave_facility_admin RLS policy already independently
+     * enforces "only a hospital_admin at THIS row's own facility may
+     * touch it" for every write on this table, including this one,
+     * exactly as it already does for approve()/reject(). The
+     * affected-row-count check below is that RLS boundary made visible
+     * as an ordinary error, not a second, application-side
+     * reimplementation of facility scoping — manipulating the {leave}
+     * UUID in the URL to point at another facility's row still resolves
+     * through the same RLS-scoped query and fails the same way (0 rows
+     * affected) any other cross-facility write already does in this
+     * app. A staff member (no hospital_admin grant) reaching this route
+     * fails for the same reason approve()/reject() already do: they
+     * have no facility_admin RLS grant, and staff_leave_update_own's
+     * USING clause requires status='requested' — an approved row can
+     * never match it — so no permissive policy anywhere would allow
+     * their own UPDATE to succeed.
+     *
+     * ============================================================
+     * REVOCATION REASON (spec item 4)
+     * ============================================================
+     * Required, and rejected if blank/whitespace-only — inline
+     * validation here rather than a new FormRequest class, matching
+     * this controller's existing withdraw()/reject() pattern of not
+     * spinning up a FormRequest for a single required field.
+     *
+     * ============================================================
+     * APPOINTMENT ENGINE INTEGRATION (spec item 8) — deliberately NOT
+     * done by writing any code here
+     * ============================================================
+     * appt_available_slots() (the live DB function every booking screen
+     * already calls — verified live, read directly, before writing this
+     * method) excludes a date from a doctor's availability ONLY when a
+     * matching staff_leave row has status = 'approved':
+     *
+     *   NOT EXISTS (
+     *     SELECT 1 FROM staff_leave sl JOIN staff_assignments sa ...
+     *     WHERE ... AND sl.status = 'approved'
+     *       AND p_date BETWEEN sl.leave_start AND sl.leave_end
+     *   )
+     *
+     * The instant this method flips status away from 'approved' to
+     * 'revoked', that EXISTS check stops matching this row on every
+     * subsequent call — availability recalculates correctly and
+     * automatically, with no separate "recompute availability" step,
+     * no cache to invalidate, and no hard-coded slot logic added here.
+     * This is exactly the spec's own requirement ("do NOT hard-code
+     * slots... use the existing dynamic appointment engine") satisfied
+     * by NOT touching appt_availability/appt_bookings at all — writing
+     * additional code here to "restore" availability would be building
+     * a second, driftable source of truth for something the live
+     * function already computes correctly on every call.
+     *
+     * ============================================================
+     * EXISTING APPOINTMENTS (spec items 9, 10) — also deliberately NOT
+     * touched
+     * ============================================================
+     * appt_bookings rows are never read or written by this method. A
+     * patient's already-booked appointment on a date that had approved
+     * leave is completely unaffected by a revoke, in either direction:
+     * revoking does not restore/un-flag a booking that approve()'s own
+     * conflict-detection previously marked resolution_state =
+     * 'pending_reschedule' (that flag is a distinct, independent fact —
+     * "this specific booking needs facility follow-up" — that revoking
+     * the leave that originally caused it does not retroactively
+     * un-cause; the booking still happened during what was, at the
+     * time, approved leave, and still needs the same manual follow-up
+     * as before). Silently clearing that flag here would be an
+     * unrequested, undocumented behavior change to a different row this
+     * method has no business touching.
+     */
+    public function revoke(StaffLeave $leave, Request $request): RedirectResponse
+    {
+        if ($leave->status !== 'approved') {
+            return back()->withErrors(['leave' => 'Only approved leave can be revoked. This request is no longer in the approved state.']);
+        }
+
+        $validated = $request->validate([
+            'revocation_reason' => ['required', 'string'],
+        ]);
+
+        $reason = trim($validated['revocation_reason']);
+
+        if ($reason === '') {
+            return back()->withErrors(['revocation_reason' => 'A reason for revocation is required.'])->withInput();
+        }
+
+        $affected = StaffLeave::query()
+            ->whereKey($leave->getKey())
+            ->where('status', 'approved')
+            ->update([
+                'status' => 'revoked',
+                'revoked_by' => Auth::id(),
+                'revoked_at' => now(),
+                'revocation_reason' => $reason,
+            ]);
+
+        if ($affected === 0) {
+            return back()->withErrors(['leave' => 'This leave could not be revoked. It may no longer be approved, or you may not be authorized to revoke it.'])->withInput();
+        }
+
+        return redirect()->route('leave.index')->with('status', 'Approved leave revoked.');
     }
 
     /**
@@ -343,7 +553,10 @@ class LeaveController extends Controller
     /**
      * Records the reviewing actor/timestamp and an optional decision
      * reason (e.g. why a request was rejected) alongside the status
-     * change — additive columns, see class docblock.
+     * change — additive columns, see class docblock. Callers
+     * (approve()/reject()) are responsible for their own state-machine
+     * guard before calling this — it is a shared write helper, not an
+     * authorization or transition-validity check itself.
      */
     private function updateStatus(StaffLeave $leave, string $status, Request $request): RedirectResponse
     {
