@@ -18,9 +18,14 @@ use Illuminate\Support\Facades\Auth;
  * extended (Phase 6 correction) with affected-appointment conflict
  * detection on approval (items 5-6 of that spec), the audit trail +
  * preserved-not-hidden resolution state for those affected appointments
- * (items 7 + 9), and further extended (this correction, 2026-08-31
- * continuation) with self-service edit/withdraw and search/filter
- * (items 9-10).
+ * (items 7 + 9), further extended (2026-08-31 continuation) with
+ * self-service edit/withdraw and search/filter (items 9-10), and
+ * further extended (this correction, production data-visibility audit)
+ * by fixing a view-layer bug where a hospital_admin's facility-wide,
+ * non-pending leave records (e.g. another doctor's approved leave)
+ * were fetched correctly by index() below but never rendered anywhere
+ * — see the companion view change's docblock and the commit message
+ * for the full root-cause writeup, confirmed via live DB + RLS read.
  *
  * See the commit message for why this single controller/table covers
  * both concerns rather than duplicating either. A row in
@@ -72,6 +77,11 @@ class LeaveController extends Controller
      * applied to the RLS-scoped base query before the admin/own split
      * below — so both lists on this page reflect the active filter,
      * never widening which rows RLS already returned.
+     *
+     * staffAssignment.department eager-loaded (this correction) purely
+     * for the view's facility-wide table — department_id/relation
+     * already existed (StaffAssignment::department(), added for the
+     * Staff directory), just never pulled into this query before.
      */
     public function index(Request $request): View
     {
@@ -85,7 +95,7 @@ class LeaveController extends Controller
         $validStatuses = ['requested', 'approved', 'rejected', 'cancelled'];
 
         $leave = StaffLeave::query()
-            ->with(['staffAssignment.user', 'staffAssignment.facility', 'staffAssignment.role', 'requestedByUser', 'reviewedByUser'])
+            ->with(['staffAssignment.user', 'staffAssignment.facility', 'staffAssignment.role', 'staffAssignment.department', 'requestedByUser', 'reviewedByUser'])
             ->when($search !== '', fn ($query) => $query->whereHas(
                 'staffAssignment.user',
                 fn ($userQuery) => $userQuery->where('full_name', 'ilike', "%{$search}%")
