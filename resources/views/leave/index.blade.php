@@ -132,6 +132,86 @@
                 </div>
             @endif
         </x-card>
+
+        {{--
+            PHASE 6 AUDIT CORRECTION: this card is the fix. Everything
+            above only ever showed status='requested' rows. Everything
+            below ("My requests") only ever shows the signed-in admin's
+            OWN staff_assignment_id. Neither subset can ever contain,
+            say, another doctor's APPROVED leave — even though RLS
+            (staff_leave_facility_admin) and the controller's filters
+            both already return it correctly in $leave. This card shows
+            the full filtered $leave collection (every status, every
+            staff member RLS permits) so that data is no longer fetched
+            and then thrown away.
+        --}}
+        <x-card title="Leave & blocked periods" class="mb-6">
+            @if($leave->isEmpty())
+                <x-empty-state
+                    title="No leave records match these filters."
+                    description="Try widening the status, date range, or staff name filter above."
+                />
+            @else
+                <div class="hidden sm:block">
+                    <x-table :headings="['Staff', 'Role', 'Facility', 'Department', 'Period', 'Type', 'Reason', 'Status', 'Requested by', 'Requested at', 'Decided by', 'Decided at']">
+                        @foreach($leave as $row)
+                            <tr>
+                                <td class="font-medium text-ink">{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }}</td>
+                                <td class="text-ink-muted">{{ $row->staffAssignment?->role?->label ?? '—' }}</td>
+                                <td class="text-ink-muted">{{ $row->staffAssignment?->facility?->name ?? '—' }}</td>
+                                <td class="text-ink-muted">{{ $row->staffAssignment?->department?->name ?? '—' }}</td>
+                                <td class="text-ink-muted">{{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</td>
+                                <td class="text-ink-muted">{{ $row->leave_type ?? '—' }}</td>
+                                <td class="max-w-[14rem] truncate text-ink-muted" title="{{ $row->reason }}">{{ $row->reason ?? '—' }}</td>
+                                <td>
+                                    <x-badge :variant="match($row->status) {
+                                        'approved' => 'success',
+                                        'rejected' => 'danger',
+                                        'cancelled' => 'neutral',
+                                        default => 'warning',
+                                    }">{{ ucfirst($row->status) }}</x-badge>
+                                </td>
+                                <td class="text-ink-muted">
+                                    {{ $row->requestedByUser?->full_name ?? '—' }}
+                                </td>
+                                <td class="text-ink-muted">{{ $row->created_at?->format('d M Y') ?? '—' }}</td>
+                                <td class="text-ink-muted">
+                                    @if($row->status === 'approved' || $row->status === 'rejected')
+                                        {{ $row->reviewedByUser?->full_name ?? '—' }}
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td class="text-ink-muted">{{ $row->reviewed_at?->format('d M Y') ?? '—' }}</td>
+                            </tr>
+                        @endforeach
+                    </x-table>
+                </div>
+
+                <div class="space-y-3 sm:hidden">
+                    @foreach($leave as $row)
+                        <div class="rounded-lg border border-surface-muted p-3">
+                            <p class="font-medium text-ink">{{ $row->staffAssignment?->user?->full_name ?? 'Name on file missing' }}</p>
+                            <p class="mt-0.5 text-sm text-ink-subtle">{{ $row->staffAssignment?->role?->label ?? '—' }} · {{ $row->staffAssignment?->facility?->name ?? '—' }}@if($row->staffAssignment?->department) · {{ $row->staffAssignment->department->name }}@endif</p>
+                            <p class="mt-0.5 text-sm text-ink-subtle">{{ $row->leave_type ?? 'Type not specified' }} · {{ $row->leave_start?->format('d M Y') }} – {{ $row->leave_end?->format('d M Y') }}</p>
+                            @if($row->reason)
+                                <p class="mt-0.5 text-sm text-ink-subtle">"{{ $row->reason }}"</p>
+                            @endif
+                            <x-badge class="mt-1" :variant="match($row->status) {
+                                'approved' => 'success',
+                                'rejected' => 'danger',
+                                'cancelled' => 'neutral',
+                                default => 'warning',
+                            }">{{ ucfirst($row->status) }}</x-badge>
+                            <p class="mt-1 text-sm text-ink-subtle">Requested by {{ $row->requestedByUser?->full_name ?? '—' }} · {{ $row->created_at?->format('d M Y') ?? '—' }}</p>
+                            @if($row->status === 'approved' || $row->status === 'rejected')
+                                <p class="mt-0.5 text-sm text-ink-subtle">Decided by {{ $row->reviewedByUser?->full_name ?? '—' }}{{ $row->reviewed_at ? ' · '.$row->reviewed_at->format('d M Y') : '' }}</p>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </x-card>
     @endif
 
     <x-card title="My requests" class="mb-6">
