@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreStaffAssignmentRequest;
+use App\Models\Department;
 use App\Models\DoctorProfile;
 use App\Models\Facility;
 use App\Models\Role;
@@ -139,6 +140,53 @@ use Illuminate\Support\Facades\DB;
  * will safely no-op (0 rows affected, no error) for another user until
  * that policy decision is made. Documented rather than silently
  * dropped — see class docblock/report.
+ *
+ * ============================================================
+ * PHASE 6.1-A — STAFF DETAIL + DIRECTORY FILTERS
+ * ============================================================
+ * show() is a read-only detail screen for a single staff_assignments
+ * row. Same non-widening pattern as DoctorController::show(): implicit
+ * route-model binding runs through the same RLS-scoped connection as
+ * every other query in this request (supabase.rls middleware), so a
+ * caller who isn't authorized to see this row — cross-facility
+ * hospital_admin, a plain staff member viewing someone else's
+ * assignment, or a tampered UUID for a row that simply isn't visible to
+ * them — gets Eloquent's ModelNotFoundException -> a real 404, not a
+ * silently-empty page. Nothing in this method decides who can see what;
+ * staff_assignments_select_own/_select_facility_admin RLS (unchanged)
+ * is the entire authorization boundary, exactly as documented above for
+ * index(). The route is declared ->withTrashed() (see routes/web.php)
+ * so a soft-deleted assignment resolves to its row instead of a 404 —
+ * this does NOT widen visibility beyond RLS (RLS has no opinion on
+ * deleted_at; it already returns deleted rows to an authorized viewer)
+ * — it only stops Eloquent's own SoftDeletingScope from independently
+ * hiding a row RLS already allowed, so "Deleted" can actually be shown
+ * as a status per spec item H rather than 404ing.
+ *
+ * Doctor-profile panel: shown only when the assignment's role code is
+ * 'doctor', sourced via $assignment->user->doctorProfile — the exact
+ * same relation/RLS (doctor_profiles_select_public) that already
+ * powers /doctors/{doctor}. No new query pattern, no new policy.
+ *
+ * index() filters: `department_id` and `status` are new, additive
+ * query-string filters alongside the existing q/role_id/facility_id.
+ * Both are plain server-side WHERE clauses (no PHP-side filtering of a
+ * fully-loaded collection), so behavior scales the same way the
+ * existing filters already do. `department_id` is intentionally NOT
+ * cross-checked against `facility_id` here — the departments table has
+ * zero rows in production as of this phase (see report), so there is
+ * no live data to validate that combination against yet; the dropdown
+ * itself is already scoped to whatever `departments_select_staff` RLS
+ * allows the caller to see, so it cannot leak another facility's
+ * department list once departments exist. `status` computes Active/
+ * Future/Expired directly in SQL (deleted_at/valid_from/valid_until vs
+ * now()) — the same three columns and comparison direction
+ * (`valid_until > now()` for "not yet expired") already used by
+ * User::activeStaffAssignment(), just expressed as an explicit,
+ * user-selectable filter instead of an implicit "current user" lookup.
+ * Selecting "Deleted" swaps in ->onlyTrashed() for that one query only;
+ * every other filter combination is unaffected and still runs under
+ * the default SoftDeletingScope, unchanged.
  */
 class StaffController extends Controller
 {
@@ -152,15 +200,21 @@ class StaffController extends Controller
      * never widening what RLS already returned. Facility-scoped
      * navigation (item 6) reaches this via a `facility_id` query param
      * linked from the facility detail page.
+     *
+     * PHASE 6.1-A adds `department_id` and `status` (active/future/
+     * expired/deleted) — see class docblock.
      */
     public function index(Request $request): View
     {
         $search = trim((string) $request->query('q', ''));
         $roleId = $request->query('role_id');
         $facilityId = trim((string) $request->query('facility_id', ''));
+        $departmentId = trim((string) $request->query('department_id', ''));
+        $status = trim((string) $request->query('status', ''));
+        $now = now();
 
         $staff = StaffAssignment::query()
-            ->whereNull('deleted_at')
+            ->when($status === 'deleted', fn ($query) => $query->onlyTrashed())
             ->with(['user', 'role', 'facility', 'department'])
             ->when($search !== '', fn ($query) => $query->whereHas(
                 'user',
@@ -168,6 +222,15 @@ class StaffController extends Controller
             ))
             ->when($roleId, fn ($query) => $query->where('role_id', $roleId))
             ->when($facilityId !== '', fn ($query) => $query->where('facility_id', $facilityId))
+            ->when($departmentId !== '', fn ($query) => $query->where('department_id', $departmentId))
+            ->when($status === 'active', fn ($query) => $query
+                ->where(fn ($q) => $q->whereNull('valid_from')->orWhere('valid_from', '<=', $now))
+                ->where(fn ($q) => $q->whereNull('valid_until')->orWhere('valid_until', '>', $now)))
+            ->when($status === 'future', fn ($query) => $query->where('valid_from', '>', $now))
+            ->when(
+                $status === 'expired',
+                fn ($query) => $query->whereNotNull('valid_until')->where('valid_until', '<=', $now)
+            )
             ->orderBy('created_at', 'desc')
             ->paginate(20)
             ->withQueryString();
@@ -178,10 +241,32 @@ class StaffController extends Controller
                 'q' => $search,
                 'role_id' => $roleId,
                 'facility_id' => $facilityId,
+                'department_id' => $departmentId,
+                'status' => $status,
             ],
             'roleOptions' => $this->assignableRoles(),
             'facilityOptions' => Facility::query()->orderBy('name')->get(['id', 'name']),
+            'departmentOptions' => Department::query()->with('facility')->orderBy('name')->get(['id', 'name', 'facility_id']),
             'canCreate' => Auth::user()?->isAdministrator() ?? false,
+        ]);
+    }
+
+    /**
+     * PHASE 6.1-A — single staff_assignments row, read-only. See class
+     * docblock for the full authorization/soft-delete rationale.
+     */
+    public function show(StaffAssignment $staff): View
+    {
+        $staff->load(['user', 'role', 'facility', 'department']);
+
+        $doctorProfile = null;
+        if ($staff->role?->code === 'doctor' && $staff->user) {
+            $doctorProfile = $staff->user->doctorProfile()->first();
+        }
+
+        return view('staff.show', [
+            'assignment' => $staff,
+            'doctorProfile' => $doctorProfile,
         ]);
     }
 

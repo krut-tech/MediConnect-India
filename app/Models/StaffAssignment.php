@@ -74,4 +74,40 @@ class StaffAssignment extends Model
     {
         return $this->belongsTo(Department::class, 'department_id');
     }
+
+    /**
+     * PHASE 6.1-A — display-only lifecycle status for the Staff
+     * directory/detail screens (spec item G/A: "Clearly distinguish
+     * Active / Future / Expired / Deleted/inactive", derived only from
+     * deleted_at / valid_from / valid_until / now(), no invented
+     * states).
+     *
+     * DELIBERATELY SEPARATE from User::activeStaffAssignment()'s
+     * existing "am I allowed in right now" resolution (used by
+     * EnsureUserHasRole/DashboardController for actual nav/auth
+     * decisions) — that query never checks valid_from and is NOT
+     * changed by this method. This method is read-only UX/reporting: it
+     * has no bearing on RLS or route authorization, exactly like every
+     * other status/label helper already in this app (see
+     * User::hasActiveStaffAssignment()'s own docblock on that same
+     * distinction).
+     */
+    public function displayStatus(): string
+    {
+        if ($this->deleted_at !== null) {
+            return 'deleted';
+        }
+
+        $now = now();
+
+        if ($this->valid_from !== null && $this->valid_from->gt($now)) {
+            return 'future';
+        }
+
+        if ($this->valid_until !== null && $this->valid_until->lte($now)) {
+            return 'expired';
+        }
+
+        return 'active';
+    }
 }
