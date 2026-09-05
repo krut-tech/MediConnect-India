@@ -27,7 +27,18 @@
                  appt_availability_write_doctor RLS (AvailabilityController
                  class docblock), so this link is safe to show broadly —
                  a staff member outside that policy simply can't publish
-                 anything from the page it leads to. --}}
+                 anything from the page it leads to.
+
+                 PHASE 6.1-B: "Edit profile" (administrators only, same
+                 UX-only gate as the others here) links to the new
+                 admin-side doctor_profiles edit screen
+                 (DoctorController::editProfile()) — the real
+                 authorization is doctor_profiles_write_facility_admin
+                 RLS, unchanged, not this button. Only rendered when
+                 $doctor->user exists (it always should for a real
+                 profile row, but this mirrors the same defensive check
+                 used for every other $doctor->user? access on this
+                 page). --}}
             <x-slot name="actions">
                 <div class="flex flex-wrap gap-2">
                     @if (auth()->user()?->hasActiveStaffAssignment())
@@ -37,6 +48,11 @@
                     @endif
 
                     @if (auth()->user()?->isAdministrator())
+                        @if ($doctor->user)
+                            <x-button :href="route('doctors.manage.edit', $doctor->user)" variant="secondary">
+                                Edit profile
+                            </x-button>
+                        @endif
                         <x-button :href="route('appointments.index')" variant="secondary">
                             Manage appointments
                         </x-button>
