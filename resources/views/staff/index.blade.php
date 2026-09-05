@@ -53,7 +53,7 @@
             <div>
                 <label class="mb-1 block text-sm font-medium text-ink">Status</label>
                 <select name="status" class="w-full rounded-lg border border-surface-muted px-3 py-2 text-sm">
-                    <option value="" @selected($filters['status'] === '')>Active &amp; future</option>
+                    <option value="" @selected($filters['status'] === '')>All (except deleted)</option>
                     <option value="active" @selected($filters['status'] === 'active')>Active only</option>
                     <option value="future" @selected($filters['status'] === 'future')>Future only</option>
                     <option value="expired" @selected($filters['status'] === 'expired')>Expired</option>

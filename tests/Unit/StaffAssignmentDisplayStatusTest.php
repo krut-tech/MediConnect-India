@@ -74,4 +74,48 @@ class StaffAssignmentDisplayStatusTest extends TestCase
 
         $this->assertSame('expired', $assignment->displayStatus());
     }
+
+    /**
+     * PRE-MERGE AUDIT (Phase 6.1-A) — boundary case: valid_from exactly
+     * "now" must NOT be treated as future, since displayStatus() uses a
+     * strict > comparison for the future check. By the time
+     * displayStatus() runs, real now() is always fractionally later
+     * than a $validFrom fixed a moment earlier, so this exercises the
+     * same boundary as test_valid_until_exactly_now_counts_as_expired()
+     * but for the future check instead.
+     */
+    public function test_valid_from_at_or_before_now_is_not_future(): void
+    {
+        $assignment = new StaffAssignment();
+        $assignment->valid_from = Carbon::now();
+        $assignment->valid_until = null;
+        $assignment->deleted_at = null;
+
+        $this->assertSame('active', $assignment->displayStatus());
+    }
+
+    /**
+     * PRE-MERGE AUDIT (Phase 6.1-A) — a row can have valid_from in the
+     * future AND a valid_until further in the future (e.g. a fixed-term
+     * assignment scheduled ahead of time). The future check must win
+     * over any valid_until comparison — a row that hasn't started yet
+     * is never "expired".
+     */
+    public function test_future_wins_over_valid_until_when_both_are_ahead(): void
+    {
+        $assignment = $this->makeAssignment('+2 days', '+10 days', null);
+
+        $this->assertSame('future', $assignment->displayStatus());
+    }
+
+    /**
+     * PRE-MERGE AUDIT (Phase 6.1-A) — deleted_at alone (no valid_from/
+     * valid_until at all) must still resolve to 'deleted', not 'active'.
+     */
+    public function test_deleted_with_no_validity_window_set(): void
+    {
+        $assignment = $this->makeAssignment(null, null, '-1 hour');
+
+        $this->assertSame('deleted', $assignment->displayStatus());
+    }
 }
