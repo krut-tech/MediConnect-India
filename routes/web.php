@@ -145,6 +145,20 @@ use Illuminate\Support\Facades\Route;
 | revoke()'s own docblock for the full state-machine + appointment-
 | engine-integration rationale.
 |
+| PHASE 6.1-B adds /doctors/manage/{user}/edit (GET) and
+| /doctors/manage/{user} (PATCH) — DoctorController::editProfile()/
+| updateProfile(), Doctor Profile Completeness. Same 'role' tier as the
+| rest of this group: only a signed-in staff member reaches the form at
+| all (a plain patient never does). The real authorization boundary is
+| entirely doctor_profiles_write_facility_admin / doctor_profiles_
+| write_own RLS (unchanged by this commit) — see DoctorController's own
+| class docblock for why this is keyed by {user} rather than
+| {doctor}/DoctorProfile. Segment shape ('manage' as a fixed literal
+| segment, 3-4 segments total) does not overlap any existing /doctors/*
+| route (/doctors/{doctor} is 2 segments, /doctors/{doctor}/schedule is
+| 3 segments GET/POST only, /doctors/{doctor}/book is 3 segments GET
+| only) — verified no route-matching ambiguity before adding these.
+|
 */
 
 Route::get('/', function () {
@@ -228,6 +242,16 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         Route::get('/schedule/{availability}/edit', [AvailabilityController::class, 'edit'])->name('schedule.edit');
         Route::patch('/schedule/{availability}', [AvailabilityController::class, 'update'])->name('schedule.update');
         Route::delete('/schedule/{availability}', [AvailabilityController::class, 'destroy'])->name('schedule.destroy');
+
+        // PHASE 6.1-B — admin-side doctor profile completeness. Keyed
+        // by {user}, not {doctor}/DoctorProfile — see class docblock on
+        // DoctorController for why (a doctor may have no doctor_profiles
+        // row yet at all). Real authorization is entirely
+        // doctor_profiles_write_facility_admin / _write_own RLS,
+        // unchanged by this commit; this route gate is reachability
+        // only, same discipline as every other route in this group.
+        Route::get('/doctors/manage/{user}/edit', [DoctorController::class, 'editProfile'])->name('doctors.manage.edit');
+        Route::patch('/doctors/manage/{user}', [DoctorController::class, 'updateProfile'])->name('doctors.manage.update');
 
         // PHASE 6 FINALIZATION — leave / blocked-period management
         // (items 2+3). One controller, one existing table
