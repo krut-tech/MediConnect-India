@@ -65,10 +65,12 @@ class StaffAssignment extends Model
     }
 
     /**
-     * Phase 6 correction — added for the new Staff directory (item 5),
-     * which shows each staff member's department where set. Additive
-     * only; department_id already existed on this table (verified live)
-     * but had no Eloquent relation defined anywhere in this app yet.
+     * Added in a prior Phase 6 commit (already on main before this
+     * Phase 6.1-A session; confirmed via `git log` during the combined
+     * 6.1-A/6.1-B integration audit — the earlier claim here that this
+     * relation was "newly added" by this phase was inaccurate and has
+     * been corrected). Kept unchanged: it's used by the Staff directory
+     * (item 5) to show each staff member's department where set.
      */
     public function department()
     {
