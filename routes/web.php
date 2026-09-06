@@ -100,6 +100,28 @@ use Illuminate\Support\Facades\Route;
 | rest of schedule management above; appt_availability_write_doctor RLS
 | is unchanged and remains the sole write authorization.
 |
+| PHASE 6.1-B adds /doctors/manage/{user}/edit (GET) and
+| /doctors/manage/{user} (PATCH) — DoctorController::editProfile()/
+| updateProfile(), Doctor Profile Completeness. Same 'role' tier as the
+| rest of this group: only a signed-in staff member reaches the form at
+| all (a plain patient never does). The real authorization boundary is
+| entirely doctor_profiles_write_facility_admin / doctor_profiles_
+| write_own RLS (unchanged by this commit) — see DoctorController's own
+| class docblock for why this is keyed by {user} rather than
+| {doctor}/DoctorProfile. Segment shape ('manage' as a fixed literal
+| segment, 3-4 segments total) does not overlap any existing /doctors/*
+| route (/doctors/{doctor} is 2 segments, /doctors/{doctor}/schedule is
+| 3 segments GET/POST only, /doctors/{doctor}/book is 3 segments GET
+| only) — verified no route-matching ambiguity before adding these.
+| Deliberately documented HERE (immediately after the schedule-
+| management paragraph, matching where its route declarations actually
+| sit in the code below) rather than appended at the very end of this
+| comment block — an earlier version anchored it at the end, which
+| collided with Phase 6.1-A's own end-of-comment addition on a separate
+| branch and produced an avoidable textual merge conflict (caught during
+| the Phase 6.1-A/6.1-B combined integration audit; no functional/route
+| conflict existed, only this comment's position did).
+|
 | PHASE 6 FINALIZATION also adds /leave (index/store/approve/reject —
 | LeaveController, items 2+3: leave AND blocked-period management, one
 | table/controller — see LeaveController's class docblock for why).
@@ -144,20 +166,6 @@ use Illuminate\Support\Facades\Route;
 | after this commit); this route gate is reachability only. See
 | revoke()'s own docblock for the full state-machine + appointment-
 | engine-integration rationale.
-|
-| PHASE 6.1-B adds /doctors/manage/{user}/edit (GET) and
-| /doctors/manage/{user} (PATCH) — DoctorController::editProfile()/
-| updateProfile(), Doctor Profile Completeness. Same 'role' tier as the
-| rest of this group: only a signed-in staff member reaches the form at
-| all (a plain patient never does). The real authorization boundary is
-| entirely doctor_profiles_write_facility_admin / doctor_profiles_
-| write_own RLS (unchanged by this commit) — see DoctorController's own
-| class docblock for why this is keyed by {user} rather than
-| {doctor}/DoctorProfile. Segment shape ('manage' as a fixed literal
-| segment, 3-4 segments total) does not overlap any existing /doctors/*
-| route (/doctors/{doctor} is 2 segments, /doctors/{doctor}/schedule is
-| 3 segments GET/POST only, /doctors/{doctor}/book is 3 segments GET
-| only) — verified no route-matching ambiguity before adding these.
 |
 */
 
