@@ -51,6 +51,25 @@ use RuntimeException;
  * connection past the end of this request and could leak into whichever
  * unrelated request the pooler hands that connection to next — this
  * service never does that.
+ *
+ * CI/TEST-ENVIRONMENT FIX (found via a real failing GitHub Actions run,
+ * not guessed): phpunit.xml points DB_CONNECTION at `sqlite_testing`
+ * (config/database.php: "Local-only fallback for running framework-
+ * level checks... without ever touching the real Supabase database.
+ * Never used in staging/production"). SQLite has no ROLE/RLS concept at
+ * all, so unconditionally issuing `SET LOCAL ROLE` / `set_config(...)`
+ * against it is a syntax error — confirmed by the actual failing test
+ * output: "SQLSTATE[HY000]: General error: 1 near "SET": syntax error
+ * (Connection: sqlite_testing, SQL: SET LOCAL ROLE authenticated)".
+ * run() below now only issues these Postgres-only statements when the
+ * active connection's driver is actually `pgsql`. This does NOT weaken
+ * RLS: on `pgsql` (staging/production, and the only connection RLS
+ * policies exist on), the guard is always true and every statement
+ * still runs exactly as before, unchanged. On `sqlite_testing`, RLS
+ * enforcement was never possible in the first place (no such mechanism
+ * exists in SQLite) — skipping statements that would only ever error
+ * there removes a false negative in the test harness, not a real
+ * authorization check.
  */
 class SupabaseRlsContext
 {
@@ -85,11 +104,13 @@ class SupabaseRlsContext
     /**
      * Run $callback inside a single database transaction with RLS
      * context (`SET LOCAL ROLE authenticated` + `request.jwt.claims` /
-     * `request.jwt.claim.sub`) established for its duration. Every
-     * Eloquent/DB call made inside $callback — directly or via anything
-     * it calls — executes under this context, on the same connection,
-     * inside the same transaction, so the settings are guaranteed to be
-     * visible to it and guaranteed to never leak past it.
+     * `request.jwt.claim.sub`) established for its duration — but only
+     * on a `pgsql` connection, where RLS/roles actually exist (see class
+     * docblock's "CI/TEST-ENVIRONMENT FIX" note). Every Eloquent/DB call
+     * made inside $callback — directly or via anything it calls —
+     * executes under this context, on the same connection, inside the
+     * same transaction, so the settings are guaranteed to be visible to
+     * it and guaranteed to never leak past it.
      *
      * Fails closed: throws immediately, before opening a transaction or
      * touching the database, if $claims has no verified subject.
@@ -118,32 +139,37 @@ class SupabaseRlsContext
         ], fn ($value) => $value !== null);
 
         return DB::transaction(function () use ($jwtClaims, $sub, $callback) {
-            // authenticated, never service_role/postgres — mediconnect_app
-            // is NOINHERIT and was granted membership in `authenticated`
-            // only (verified in Phase 5 Step 1); this SET LOCAL ROLE is
-            // what makes that granted membership the session's active
-            // privilege set for the rest of this transaction.
-            DB::statement('SET LOCAL ROLE authenticated');
+            // Postgres-only session GUCs — see class docblock's
+            // "CI/TEST-ENVIRONMENT FIX" note for why this is guarded by
+            // driver and why that guard never weakens RLS on `pgsql`.
+            if (DB::connection()->getDriverName() === 'pgsql') {
+                // authenticated, never service_role/postgres — mediconnect_app
+                // is NOINHERIT and was granted membership in `authenticated`
+                // only (verified in Phase 5 Step 1); this SET LOCAL ROLE is
+                // what makes that granted membership the session's active
+                // privilege set for the rest of this transaction.
+                DB::statement('SET LOCAL ROLE authenticated');
 
-            // Full JSON form — this is what modern PostgREST/Supabase
-            // helper functions (auth.jwt(), and the resolve_*/user_has_*
-            // functions surfaced by get_advisors) read via
-            // current_setting('request.jwt.claims', true)::jsonb.
-            DB::statement(
-                "SELECT set_config('request.jwt.claims', ?, true)",
-                [json_encode($jwtClaims)]
-            );
+                // Full JSON form — this is what modern PostgREST/Supabase
+                // helper functions (auth.jwt(), and the resolve_*/user_has_*
+                // functions surfaced by get_advisors) read via
+                // current_setting('request.jwt.claims', true)::jsonb.
+                DB::statement(
+                    "SELECT set_config('request.jwt.claims', ?, true)",
+                    [json_encode($jwtClaims)]
+                );
 
-            // Flat per-claim key form — auth.uid()'s actual definition
-            // checks this key FIRST, falling back to the JSON form only
-            // if it's absent. Both are set so auth.uid()/auth.role()
-            // resolve correctly regardless of which form a given
-            // installed helper function happens to read.
-            DB::statement("SELECT set_config('request.jwt.claim.sub', ?, true)", [$sub]);
-            DB::statement(
-                "SELECT set_config('request.jwt.claim.role', ?, true)",
-                [$jwtClaims['role']]
-            );
+                // Flat per-claim key form — auth.uid()'s actual definition
+                // checks this key FIRST, falling back to the JSON form only
+                // if it's absent. Both are set so auth.uid()/auth.role()
+                // resolve correctly regardless of which form a given
+                // installed helper function happens to read.
+                DB::statement("SELECT set_config('request.jwt.claim.sub', ?, true)", [$sub]);
+                DB::statement(
+                    "SELECT set_config('request.jwt.claim.role', ?, true)",
+                    [$jwtClaims['role']]
+                );
+            }
 
             return $callback();
         });
