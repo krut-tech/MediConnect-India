@@ -145,6 +145,17 @@ use Illuminate\Support\Facades\Route;
 | revoke()'s own docblock for the full state-machine + appointment-
 | engine-integration rationale.
 |
+| PHASE 6.1-A adds /staff/{staff} (StaffController::show(), read-only
+| detail page — spec item A "open staff detail"). Same 'role' tier and
+| same discipline as every other route in this group: the real
+| authorization boundary is staff_assignments_select_own/
+| _select_facility_admin RLS (unchanged by this commit), not this route
+| gate. Declared ->withTrashed() so implicit route-model binding can
+| resolve a soft-deleted staff_assignments row (to display "Deleted"
+| status per spec item H) instead of always 404ing on one — this does
+| NOT widen who can see the row; RLS already independently governs that
+| regardless of deleted_at, per StaffController::show()'s own docblock.
+|
 */
 
 Route::get('/', function () {
@@ -252,8 +263,8 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         // PHASE 6 CORRECTION (approved-leave revoke) — confirmation
         // screen (GET) + the actual revoke (PATCH). Real authorization/
         // facility-isolation remains staff_leave_facility_admin RLS,
-        // unchanged by this commit — see LeaveController::revoke()'s
-        // own docblock.
+        // unchanged, verified live before and after this commit — see
+        // LeaveController::revoke()'s own docblock.
         Route::get('/leave/{leave}/revoke', [LeaveController::class, 'confirmRevoke'])->name('leave.revoke.confirm');
         Route::patch('/leave/{leave}/revoke', [LeaveController::class, 'revoke'])->name('leave.revoke');
 
@@ -270,5 +281,11 @@ Route::middleware(['supabase.auth', 'supabase.rls'])->group(function () {
         // preview (BUG 4). Reveals nothing beyond the caller's own RLS
         // context — see StaffController::lookup()'s docblock.
         Route::get('/staff/lookup', [StaffController::class, 'lookup'])->name('staff.lookup');
+
+        // PHASE 6.1-A — staff detail (spec item A "open staff detail").
+        // ->withTrashed() lets implicit binding resolve a soft-deleted
+        // row for status display — see StaffController::show()'s and
+        // this file's header docblock for why that's safe.
+        Route::get('/staff/{staff}', [StaffController::class, 'show'])->name('staff.show')->withTrashed();
     });
 });

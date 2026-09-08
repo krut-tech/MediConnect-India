@@ -65,13 +65,51 @@ class StaffAssignment extends Model
     }
 
     /**
-     * Phase 6 correction — added for the new Staff directory (item 5),
-     * which shows each staff member's department where set. Additive
-     * only; department_id already existed on this table (verified live)
-     * but had no Eloquent relation defined anywhere in this app yet.
+     * Added in a prior Phase 6 commit (already on main before this
+     * Phase 6.1-A session; confirmed via `git log` during the combined
+     * 6.1-A/6.1-B integration audit — the earlier claim here that this
+     * relation was "newly added" by this phase was inaccurate and has
+     * been corrected). Kept unchanged: it's used by the Staff directory
+     * (item 5) to show each staff member's department where set.
      */
     public function department()
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    /**
+     * PHASE 6.1-A — display-only lifecycle status for the Staff
+     * directory/detail screens (spec item G/A: "Clearly distinguish
+     * Active / Future / Expired / Deleted/inactive", derived only from
+     * deleted_at / valid_from / valid_until / now(), no invented
+     * states).
+     *
+     * DELIBERATELY SEPARATE from User::activeStaffAssignment()'s
+     * existing "am I allowed in right now" resolution (used by
+     * EnsureUserHasRole/DashboardController for actual nav/auth
+     * decisions) — that query never checks valid_from and is NOT
+     * changed by this method. This method is read-only UX/reporting: it
+     * has no bearing on RLS or route authorization, exactly like every
+     * other status/label helper already in this app (see
+     * User::hasActiveStaffAssignment()'s own docblock on that same
+     * distinction).
+     */
+    public function displayStatus(): string
+    {
+        if ($this->deleted_at !== null) {
+            return 'deleted';
+        }
+
+        $now = now();
+
+        if ($this->valid_from !== null && $this->valid_from->gt($now)) {
+            return 'future';
+        }
+
+        if ($this->valid_until !== null && $this->valid_until->lte($now)) {
+            return 'expired';
+        }
+
+        return 'active';
     }
 }
